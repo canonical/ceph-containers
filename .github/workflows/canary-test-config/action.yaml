@@ -1,0 +1,43 @@
+name: Cluster Setup
+description: Cluster setup for canary test
+inputs:
+  github-token:
+    description: GITHUB_TOKEN from the calling workflow
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: setup golang
+      uses: actions/setup-go@v2
+      with:
+        go-version: 1.18
+
+    - name: setup minikube
+      uses: manusa/actions-setup-minikube@v2.7.0
+      with:
+        minikube version: "v1.27.0"
+        kubernetes version: "v1.25.0"
+        start args: --memory 6g --cpus=2 --addons ingress
+        github token: ${{ inputs.github-token }}
+
+    - name: download rook release
+      uses: robinraju/release-downloader@v1.6
+      with: 
+        repository: "rook/rook"
+        tag: "v1.10.6"
+        tarBall: true
+        
+        
+    - name: Run a multi-line script
+      shell: bash --noprofile --norc -eo pipefail -x {0}
+      run: |
+        tar xf rook-*.tar.gz
+        rm -f *.tar.gz
+        mv rook-* rook
+        
+    - name: print k8s cluster status
+      shell: bash --noprofile --norc -eo pipefail -x {0}
+      run: cd rook ; ./tests/scripts/github-action-helper.sh print_k8s_cluster_status
+
+      
