@@ -13,10 +13,11 @@ runs:
       shell: bash --noprofile --norc -eo pipefail -x {0}
       run: |
         cd rook
+        export LOG_DIR="/home/runner/work/test"
         tests/scripts/collect-logs.sh
 
     - name: Upload canary test result
       uses: actions/upload-artifact@v2
       with:
         name: ${{ inputs.name }}
-        path: test
+        path: /home/runner/work/test
