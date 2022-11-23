@@ -39,5 +39,3 @@ runs:
     - name: print k8s cluster status
       shell: bash --noprofile --norc -eo pipefail -x {0}
       run: cd rook ; ./tests/scripts/github-action-helper.sh print_k8s_cluster_status
-
-      
