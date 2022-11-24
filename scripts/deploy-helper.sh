@@ -19,13 +19,11 @@
 set -xeEo pipefail
 
 
-function deploy_manifest_with_custom_image() {
+function deploy_operator_with_custom_image() {
   local yaml=${1:?missing}
   local img=${2:?missing}
   sed -i 's/.*ROOK_CSI_ENABLE_NFS:.*/  ROOK_CSI_ENABLE_NFS: \"true\"/g' $yaml
-  if [[ "$USE_LOCAL_BUILD" != "false" ]]; then
-    sed -i "s|image: rook/ceph:.*|image: $img|g" $yaml
-  fi
+  sed -i "s|image: rook/ceph:.*|image: $img|g" $yaml
   if [[ "$ALLOW_LOOP_DEVICES" = "true" ]]; then
     sed -i "s|ROOK_CEPH_ALLOW_LOOP_DEVICES: \"false\"|ROOK_CEPH_ALLOW_LOOP_DEVICES: \"true\"|g" $yaml
   fi
@@ -33,28 +31,23 @@ function deploy_manifest_with_custom_image() {
   kubectl create -f $yaml
 }
 
+function deploy_cluster_with_custom_image() {
+  local yaml=${1:?missing}
+  local img=${2:?missing}
+  sed -i "s|#deviceFilter:|deviceFilter: ${BLOCK/\/dev\//}|g" $yaml
+  sed -i "s|image: quay.io/ceph/ceph:v17.*|image: $img|g" $yaml
+  kubectl create -f $yaml
+}
+
 function deploy_cluster() {
-  local img=$( cat custom-image-spec )
+  local operator_default="rook/ceph:master"
+  local operator_img=${1:-"$operator_default"}
+  local cluster_default="$( cat custom-image-spec )"
+  local cluster_img=${2:-"$cluster_default"}
+
   cd rook/deploy/examples
-  deploy_manifest_with_custom_image operator.yaml $img
-  if [ $# == 0 ]; then
-    sed -i "s|#deviceFilter:|deviceFilter: ${BLOCK/\/dev\//}|g" cluster-test.yaml
-  elif [ "$1" = "two_osds_in_device" ]; then
-    sed -i "s|#deviceFilter:|deviceFilter: ${BLOCK/\/dev\//}\n    config:\n      osdsPerDevice: \"2\"|g" cluster-test.yaml
-  elif [ "$1" = "osd_with_metadata_device" ]; then
-    sed -i "s|#deviceFilter:|deviceFilter: ${BLOCK/\/dev\//}\n    config:\n      metadataDevice: /dev/test-rook-vg/test-rook-lv|g" cluster-test.yaml
-  elif [ "$1" = "encryption" ]; then
-    sed -i "s|#deviceFilter:|deviceFilter: ${BLOCK/\/dev\//}\n    config:\n      encryptedDevice: \"true\"|g" cluster-test.yaml
-  elif [ "$1" = "lvm" ]; then
-    sed -i "s|#deviceFilter:|devices:\n      - name: \"/dev/test-rook-vg/test-rook-lv\"|g" cluster-test.yaml
-  elif [ "$1" = "loop" ]; then
-    # add both /dev/sdX1 and loop device to test them at the same time
-    sed -i "s|#deviceFilter:|devices:\n      - name: \"${BLOCK}\"\n      - name: \"/dev/loop1\"|g" cluster-test.yaml
-  else
-    echo "invalid argument: $*" >&2
-    exit 1
-  fi
-  kubectl create -f cluster-test.yaml
+  deploy_operator_with_custom_image operator.yaml $operator_img
+  deploy_cluster_with_custom_image cluster-test.yaml $cluster_img
   kubectl create -f object-test.yaml
   kubectl create -f pool-test.yaml
   kubectl create -f filesystem-test.yaml
@@ -64,9 +57,8 @@ function deploy_cluster() {
   kubectl create -f filesystem-mirror.yaml
   kubectl create -f nfs-test.yaml
   kubectl create -f subvolumegroup.yaml
-  deploy_manifest_with_custom_image toolbox.yaml $img
+  deploy_operator_with_custom_image toolbox.yaml $img $operator_img
 }
-
 
 
 

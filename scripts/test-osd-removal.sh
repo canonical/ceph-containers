@@ -18,15 +18,13 @@
 
 set -xeEo pipefail
 
-img=$( cat custom-image-spec )
-
 cd rook
 kubectl -n rook-ceph delete deploy/rook-ceph-operator
 kubectl -n rook-ceph delete deploy/rook-ceph-osd-1 --grace-period=0 --force
 sed -i 's/<OSD-IDs>/1/' deploy/examples/osd-purge.yaml
 # the CI must force the deletion since we use replica 1 on 2 OSDs
 sed -i 's/false/true/' deploy/examples/osd-purge.yaml
-sed -i "s|rook/ceph:.*|$img|" deploy/examples/osd-purge.yaml
+sed -i "s|rook/ceph:.*|rook/ceph:master|" deploy/examples/osd-purge.yaml
 kubectl -n rook-ceph create -f deploy/examples/osd-purge.yaml
 toolbox=$(kubectl get pod -l app=rook-ceph-tools -n rook-ceph -o jsonpath='{.items[*].metadata.name}')
 kubectl -n rook-ceph exec $toolbox -- ceph status
