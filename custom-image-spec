@@ -1,1 +1,1 @@
-quay.io/ceph/ceph:v17
+localhost:5000/canonical/ceph:latest
