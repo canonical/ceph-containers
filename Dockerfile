@@ -109,7 +109,7 @@ sed -i -e 's/udev_rules = 1/udev_rules = 0/' -e 's/udev_sync = 1/udev_sync = 0/'
 grep -sqo "udev_sync = 0" /etc/lvm/lvm.conf && \
 grep -sqo "udev_rules = 0" /etc/lvm/lvm.conf && \
 grep -sqo "obtain_device_list_from_udev = 0" /etc/lvm/lvm.conf && \
-mkdir -p /var/run/ganesha && \
+mkdir -p /var/run/ceph /var/run/ganesha && \
     # Clean common files like /tmp, /var/lib, etc.
     rm -rf \
         /etc/{selinux,systemd,udev} \
