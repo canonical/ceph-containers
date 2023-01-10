@@ -12,6 +12,7 @@ function install_pkg() {
 function bootstrap() {
     local image="${1:missing}"
     local ip="${2:?missing}"
+    sudo cephadm prepare-host
     sudo cephadm --image $image bootstrap --mon-ip $ip
 }
 

@@ -62,6 +62,7 @@ jobs:
           docker image tag canonical/ceph:latest localhost:5000/canonical/ceph:latest
           docker push localhost:5000/canonical/ceph
           echo $'[registries.insecure]\nregistries = ["localhost:5000"]' | sudo tee -a /etc/containers/registries.conf
+          podman pull localhost:5000/canonical/ceph:latest
       - name: prep local block device
         run:  ./scripts/cephadm-test.sh use_local_disk
 
@@ -115,7 +116,7 @@ jobs:
           docker image tag canonical/ceph:latest localhost:5000/canonical/ceph:latest
           docker push localhost:5000/canonical/ceph
           echo $'[registries.insecure]\nregistries = ["localhost:5000"]' | sudo tee -a /etc/containers/registries.conf
-
+          podman pull localhost:5000/canonical/ceph:latest
       - name: deploy cluster
         run: ./scripts/deploy-helper.sh deploy_cluster
 
