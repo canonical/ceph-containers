@@ -41,8 +41,7 @@ ENV OSD_FLAVOR default
 RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
 DEBIAN_FRONTEND=noninteractive apt-get install -yy --force-yes --no-install-recommends \
 gnupg curl apt-transport-https ca-certificates
-RUN echo "ceph:x:2016:2016:Ceph daemons:/var/lib/ceph:/sbin/nologin" >> /etc/passwd && \
-    echo 'ceph:x:2016:' >> /etc/group
+
 # Escape char after immediately after RUN allows comment in first line
 RUN \
     # Install all components for the image, whether from packages or web downloads.
