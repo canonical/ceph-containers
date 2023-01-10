@@ -39,11 +39,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
 
-    services:
-      registry:
-        image: registry:2
-        ports:
-          - 5000:5000
 
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
@@ -57,6 +52,7 @@ jobs:
           path: /tmp
       - name: Load image and load to registry
         run: |
+          docker run -d -p 5000:5000 --restart=always --name registry registry:2
           docker load --input /tmp/myimage.tar
           docker image ls -a
           docker image tag canonical/ceph:latest localhost:5000/canonical/ceph:latest
