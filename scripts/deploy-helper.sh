@@ -24,7 +24,6 @@ function deploy_operator_with_custom_image() {
   local img=${2:?missing}
   sed -i 's/.*ROOK_CSI_ENABLE_NFS:.*/  ROOK_CSI_ENABLE_NFS: \"true\"/g' $yaml
   sed -i "s|image: rook/ceph:.*|image: $img|g" $yaml
-  sed -i "s/runAsUser: 2016/runAsUser: 167/g" $yaml
   if [[ "$ALLOW_LOOP_DEVICES" = "true" ]]; then
     sed -i "s|ROOK_CEPH_ALLOW_LOOP_DEVICES: \"false\"|ROOK_CEPH_ALLOW_LOOP_DEVICES: \"true\"|g" $yaml
   fi
@@ -37,7 +36,6 @@ function deploy_cluster_with_custom_image() {
   local img=${2:?missing}
   sed -i "s|#deviceFilter:|deviceFilter: ${BLOCK/\/dev\//}|g" $yaml
   sed -i "s|image: quay.io/ceph/ceph:v17.*|image: $img|g" $yaml
-  sed -i "s/runAsUser: 2016/runAsUser: 167/g" $yaml
   kubectl create -f $yaml
 }
 

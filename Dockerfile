@@ -310,6 +310,7 @@ RUN bash "/opt/ceph-container/bin/generate_entrypoint.sh" && \
   rm -f /opt/ceph-container/bin/generate_entrypoint.sh && \
   bash -n /opt/ceph-container/bin/*.sh
 
+USER ceph
 # Execute the entrypoint
 WORKDIR /
 ENTRYPOINT ["/opt/ceph-container/bin/entrypoint.sh"]
