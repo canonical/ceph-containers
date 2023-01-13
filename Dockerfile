@@ -14,25 +14,30 @@ LABEL ceph="True"
 LABEL RELEASE="main"
 
 # What was the url of the git repository
-LABEL GIT_REPO="https://github.com/UtkarshBhatthere/ceph-container.git"
+LABEL GIT_REPO="https://github.com/canonical/ceph-container.git"
 
 # What was the git branch used to build this container
 LABEL GIT_BRANCH="main"
 
 # What was the commit ID of the current HEAD
-LABEL GIT_COMMIT="f77ca5de7910f1e3de260a1218c757954afd8327"
+ARG GIT_COMMIT=unspecified
+LABEL git_commit=$GIT_COMMIT
 
 # Was the repository clean when building ?
-LABEL GIT_CLEAN="False"
+LABEL GIT_CLEAN="True"
 
 # What CEPH_POINT_RELEASE has been used ?
-LABEL CEPH_POINT_RELEASE=""
+LABEL CEPH_POINT_RELEASE="-17.2.0"
 
-ENV CEPH_VERSION pacific
-ENV CEPH_POINT_RELEASE ""
+ENV CEPH_VERSION quincy
+ENV CEPH_POINT_RELEASE "-17.2.0"
 ENV CEPH_DEVEL false
-ENV CEPH_REF pacific
+ENV CEPH_REF quincy
 ENV OSD_FLAVOR default
+
+# Optional custom .deb repo
+ARG CUSTOM_APT_REPO=""
+
 
 #======================================================
 # Install ceph and dependencies, and clean up
@@ -41,6 +46,12 @@ ENV OSD_FLAVOR default
 RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
 DEBIAN_FRONTEND=noninteractive apt-get install -yy --force-yes --no-install-recommends \
 gnupg curl apt-transport-https ca-certificates
+
+# Optionally inject custom apt repo
+RUN if [ -n "${CUSTOM_APT_REPO}" ] ; then \
+      DEBIAN_FRONTEND=noninteractive apt-get install -yy --no-install-recommends gpg-agent software-properties-common ; \
+      DEBIAN_FRONTEND=noninteractive add-apt-repository -y "${CUSTOM_APT_REPO}" ; \
+    fi
 
 # Escape char after immediately after RUN allows comment in first line
 RUN \
@@ -85,7 +96,8 @@ ceph-mgr-rook\
         attr \
 ceph-fuse \
 rbd-nbd \
-         && \
+cephfs-mirror \
+    && \
     # Clean container, starting with record of current size (strip / from end)
     INITIAL_SIZE="$(bash -c 'sz="$(du -sm --exclude=/proc /)" ; echo "${sz%*/}"')" && \
     #

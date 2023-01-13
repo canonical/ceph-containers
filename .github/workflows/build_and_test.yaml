@@ -28,6 +28,8 @@ jobs:
           context: .
           tags: canonical/ceph:latest
           outputs: type=docker,dest=/tmp/myimage.tar
+          build-args: |
+            "CUSTOM_APT_REPO=ppa:peter-sabaini/ceph-test"
       -
         name: Upload artifact
         uses: actions/upload-artifact@v3
@@ -77,7 +79,7 @@ jobs:
 
   RookTest:
     needs: build
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
 
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
