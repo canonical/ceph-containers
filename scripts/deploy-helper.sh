@@ -40,7 +40,7 @@ function deploy_cluster_with_custom_image() {
 }
 
 function deploy_cluster() {
-  local operator_default="rook/ceph:master"
+  local operator_default="rook/ceph:v1.10.10"
   local operator_img=${1:-"$operator_default"}
   local cluster_default="$( cat custom-image-spec )"
   local cluster_img=${2:-"$cluster_default"}
