@@ -79,7 +79,7 @@ class Cleaner:
 
 class DeployRunner:
     # LXD Vars
-    deploy_tag = "oci-testing-" + _get_random_string(4)
+    deploy_tag = "ubuntu-ceph-" + _get_random_string(4)
     complete_repo_path = "/home/ubuntu"
     cwd = os.getcwd()
     spd = os.path.dirname(os.path.realpath(__file__))  # Script Parent Directory.
