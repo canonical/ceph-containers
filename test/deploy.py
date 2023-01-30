@@ -82,7 +82,8 @@ class DeployRunner:
     deploy_tag = "ubuntu-ceph-" + _get_random_string(4)
     complete_repo_path = "/home/ubuntu"
     cwd = os.getcwd()
-    spd = os.path.dirname(os.path.realpath(__file__))  # Script Parent Directory.
+    # Script Parent Directory.
+    spd = os.path.dirname(os.path.realpath(__file__))
     usr = pwd.getpwuid(os.getuid())[0]
     modelFilePath = ""
     model = dict()
@@ -108,10 +109,12 @@ class DeployRunner:
             print("Model information exported to {}"
                   .format(self.modelFilePath))
 
-    def check_snaps_installed(self, required_snaps: list = []):
+    def check_snaps_installed(self, required_snaps: tuple = None):
         """Check if snap dependencies are met."""
-        if not required_snaps:
-            required_snaps = ["lxd"]
+        check_snaps = {"lxd"}
+        if required_snaps:
+            for snap in required_snaps:
+                check_snaps.add(snap)
 
         cmd = ["snap", "list"]
         output = subprocess.check_output(cmd).decode()
@@ -120,7 +123,7 @@ class DeployRunner:
                 output.splitlines()
             ))
 
-        if not all(snap in snaps for snap in required_snaps):
+        if not all(snap in snaps for snap in check_snaps):
             raise PreconditionError("Required snaps not installed: {}"
                                     .format(snaps))
 
@@ -166,7 +169,7 @@ class DeployRunner:
         self.model["storage_pool"] = pool_name
 
     def create_vm_profile(
-        self, volumes: list, pool_name=deploy_tag, profile_name=deploy_tag
+        self, volumes: tuple, pool_name=deploy_tag, profile_name=deploy_tag
     ) -> None:
         """Create a VM profile for LXD"""
         if not self.client:
@@ -244,42 +247,45 @@ class DeployRunner:
         self.grow_root_partition(vm_name)
         return vm_name  # vm_name to refer to the newly create vm.
 
-    def check_call_on_vm(
-        self, vm_name: string, cmd: list, is_fail_print=True
-    ) -> tuple:
-        """Execute Command on VM."""
+    def vm_exists(self, vm_name: string) -> bool:
+        '''Check if LXD VM exists.'''
         if not self.client:
             raise PreconditionError("LXD Client not available to runner.")
 
         if not self.client.instances.exists(vm_name):
             raise PreconditionError("VM {} does not exist.".format(vm_name))
 
-        inner_cmd = ["lxc", "exec", vm_name, "--", *cmd]
-        try:
-            subprocess.check_call(inner_cmd)
-        except subprocess.CalledProcessError as e:
-            if is_fail_print:
-                print("Failed Executing on {}: Output {}".format(vm_name, e))
-            raise e
+        return True  # It exists.
+
+    def check_call_on_vm(
+        self, vm_name: string, cmd: list, is_fail_print=True
+    ) -> tuple:
+        """Execute Command on VM."""
+        if self.vm_exists(vm_name):
+            inner_cmd = ["lxc", "exec", vm_name, "--", *cmd]
+            try:
+                subprocess.check_call(inner_cmd)
+            except subprocess.CalledProcessError as e:
+                if is_fail_print:
+                    print("Failed Executing on {}: Output {}"
+                          .format(vm_name, e))
+                raise e
 
     def check_output_on_cephadm_shell(
         self, vm_name: string, cmd: list, is_fail_print=True
     ) -> str:
         """Execute cmd on cephadm and return output"""
-        if not self.client:
-            raise PreconditionError("LXD Client not available to runner.")
-
-        if not self.client.instances.exists(vm_name):
-            raise PreconditionError("VM {} does not exist.".format(vm_name))
-
-        inner_cmd = ["lxc", "exec", vm_name, "--", "cephadm", "shell", *cmd]
-        try:
-            return subprocess.check_output(inner_cmd).decode("UTF-8")
-        except subprocess.CalledProcessError as e:
-            if is_fail_print:
-                print("Failed Cephadm Execution on {}: Output {}"
-                      .format(vm_name, e))
-            raise e
+        if self.vm_exists(vm_name):
+            inner_cmd = [
+                "lxc", "exec", vm_name, "--", "cephadm", "shell", *cmd
+            ]
+            try:
+                return subprocess.check_output(inner_cmd).decode("UTF-8")
+            except subprocess.CalledProcessError as e:
+                if is_fail_print:
+                    print("Failed Cephadm Execution on {}: Output {}"
+                          .format(vm_name, e))
+                raise e
 
     def wait_for_vm_ready(self, vm_name, max_attempt=20) -> None:
         isVmReady = False
@@ -299,27 +305,22 @@ class DeployRunner:
         self, vm_name: string, src_path: string, target_path: string
     ) -> None:
         """Send Files (recursively) to VM"""
-        if not self.client:
-            raise PreconditionError("LXD Client not available to runner.")
-
-        if not self.client.instances.exists(vm_name):
-            raise PreconditionError("VM {} does not exist.".format(vm_name))
-
-        cmd = [
-            "lxc",
-            "file",
-            "push",
-            src_path,
-            "{}{}".format(vm_name, target_path),
-            "-r",
-        ]
-        print("PUSHING FILES {}".format(cmd))
-        try:
-            subprocess.check_call(cmd)
-        except subprocess.CalledProcessError as e:
-            print("Failed Pushing {} to {}: Output {}"
-                  .format(src_path, vm_name, e))
-            raise e
+        if self.vm_exists(vm_name):
+            cmd = [
+                "lxc",
+                "file",
+                "push",
+                src_path,
+                "{}{}".format(vm_name, target_path),
+                "-r",
+            ]
+            print("PUSHING FILES {}".format(cmd))
+            try:
+                subprocess.check_call(cmd)
+            except subprocess.CalledProcessError as e:
+                print("Failed Pushing {} to {}: Output {}"
+                      .format(src_path, vm_name, e))
+                raise e
 
     def create_storage_volume(
         self,
@@ -357,18 +358,14 @@ class DeployRunner:
         params=[], op_print=True
     ) -> None:
         """Execute a remote script on LXD VM."""
-        if not self.client:
-            raise PreconditionError("LXD Client not available to runner.")
-
-        if not self.client.instances.exists(vm_name):
-            raise PreconditionError("VM {} does not exist.".format(vm_name))
-        cmd = [
-            "bash", self.complete_repo_path + "/" + relative_script_path,
-            *params
-        ]
-        if op_print:
-            print("Executing on {}: CMD: {}".format(vm_name, cmd))
-        self.check_call_on_vm(vm_name, cmd)
+        if self.vm_exists(vm_name):
+            cmd = [
+                "bash", self.complete_repo_path + "/" + relative_script_path,
+                *params
+            ]
+            if op_print:
+                print("Executing on {}: CMD: {}".format(vm_name, cmd))
+            self.check_call_on_vm(vm_name, cmd)
 
     def install_apt_package(
         self,
@@ -388,12 +385,6 @@ class DeployRunner:
         self, vm_name: string, src_path: string = None, repo_path="/home/"
     ) -> None:
         """Copies the Repository to LXD Vm for building"""
-        if not self.client:
-            raise PreconditionError("LXD Client not available to runner.")
-
-        if not self.client.instances.exists(vm_name):
-            raise PreconditionError("VM {} does not exist.".format(vm_name))
-
         if src_path is None:
             # Going one directory "UP" from test.
             src_path = '/'.join(self.spd.split('/')[0:-1])
@@ -525,7 +516,7 @@ class DeployRunner:
         try:
             self.create_storage_pool()
             volumes = self.create_storage_volume()
-            self.create_vm_profile(volumes)
+            self.create_vm_profile(tuple(volumes))
             vm_name = self.create_vm()
             self.sync_repo_to_vm(vm_name)
             self.install_apt_package(vm_name)
