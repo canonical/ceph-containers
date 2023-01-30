@@ -66,16 +66,16 @@ We also provide a python3 script which can deploy a single node ceph cluster for
 ### Script Usage:
 1.) Use Script to deploy a new Cephadm host:
 ```
-python3 deploy.py
+python3 test/deploy.py
 ```
 2.) Use Script to clean a deployment:
 ```
-python3 deploy.py delete <model_file_path>
+python3 test/deploy.py delete <model_file_path>
 ```
 3.) Use Script to deploy a custom image:
 e.g. <image_name>: ceph/ceph:latest
 ```
-python3 deploy.py image <image_name>
+python3 test/deploy.py image <image_name>
 ```
 VM prepared by Script: 
 ```
