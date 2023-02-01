@@ -35,8 +35,8 @@ ENV CEPH_DEVEL false
 ENV CEPH_REF quincy
 ENV OSD_FLAVOR default
 
-# Optional custom .deb repo
-ARG CUSTOM_APT_REPO=""
+# Additional custom .deb repo
+ARG CUSTOM_APT_REPO="ppa:peter-sabaini/ceph-test"
 
 
 #======================================================
