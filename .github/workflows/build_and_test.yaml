@@ -77,6 +77,44 @@ jobs:
         uses: lhotari/action-upterm@v1
         if: failure()
 
+  CephAdmScriptTest:
+    runs-on: ubuntu-latest
+    needs: build
+    strategy:
+      matrix:
+        python-version: ["3.10"]
+
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v3
+
+      - name: set up python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: install pip dependencies
+        run: |
+          sudo python -m pip install --upgrade pip
+          sudo pip install flake8 pylxd pyyaml
+
+      - name: Lint Check
+        run: |
+          flake8 . --count --show-source --statistics
+
+      - name: install and init lxd snap
+        run: |
+          sudo snap install lxd
+          sudo lxd init --auto
+
+      - name: Deploy Cephadm over LXD
+        run: |
+          sudo python test/deploy.py build-arg "CUSTOM_APT_REPO=ppa:peter-sabaini/ceph-test"
+
+      - name: consider debugging
+        uses: lhotari/action-upterm@v1
+        if: failure()
+
   RookTest:
     needs: build
     runs-on: ubuntu-latest

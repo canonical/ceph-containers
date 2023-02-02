@@ -26,7 +26,7 @@ class PreconditionError(Exception):
         self.description = description
 
     def __str__(self):
-        return(repr(self.description))
+        return (repr(self.description))
 
 
 class Cleaner:
@@ -92,7 +92,7 @@ class DeployRunner:
         # Check LXD installed on host.
         self.check_snaps_installed()
         # Check if current user is part of the lxd user group.
-        self.check_user_in_group()
+        # self.check_user_in_group()
         # init client
         self.client = pylxd.Client()
         # Check if LXD is initialised.
@@ -140,8 +140,10 @@ class DeployRunner:
             raise PreconditionError(
                 "User {} is not in group {}."
                 "\nnewgrp {}"
-                "\nsudo usermod -aG {} {}".format(
-                    self.usr, group_name, group_name, self.usr, group_name
+                "\nsudo usermod -aG {} {}"
+                "Output: {}".format(
+                    self.usr, group_name, group_name, self.usr,
+                    group_name, output
                 )
             )
 
@@ -405,14 +407,24 @@ class DeployRunner:
     def prepare_container_image(
         self,
         vm_name,
+        build_arg: string = None,
         relative_script_path="test/scripts/cephadm_helper.sh",
     ) -> None:
         """Make built image available on local registry"""
         # NOTE: The dockerfile is always expected to be at the root of repo.
-        self.exec_remote_script(
-            vm_name, relative_script_path,
-            ["prep_docker", self.complete_repo_path]
-        )
+        if build_arg is None:
+            self.exec_remote_script(
+                vm_name, relative_script_path,
+                ["prep_docker", self.complete_repo_path]
+            )
+        else:
+            self.exec_remote_script(
+                vm_name, relative_script_path,
+                [
+                    "prep_docker", "--build-arg", build_arg,
+                    self.complete_repo_path
+                ]
+            )
 
     def bootstrap_cephadm(
         self,
@@ -511,7 +523,9 @@ class DeployRunner:
             ]
             self.check_output_on_cephadm_shell(vm_name, cmd)
 
-    def deploy_cephadm(self, custom_image: str = None) -> None:
+    def deploy_cephadm(
+        self, custom_image: str = None, build_arg: str = None
+    ) -> None:
         '''Deploy cephadm over LXD host.'''
         try:
             self.create_storage_pool()
@@ -523,7 +537,7 @@ class DeployRunner:
 
             # Build Container Image if custom image not provided.
             if custom_image is None:
-                self.prepare_container_image(vm_name)
+                self.prepare_container_image(vm_name, build_arg=build_arg)
                 self.bootstrap_cephadm(vm_name)
             else:
                 self.bootstrap_cephadm(vm_name, image=custom_image)
@@ -534,6 +548,7 @@ class DeployRunner:
         except Exception as e:
             print("Failed deploying Cephadm over LXD: Error {}".format(e))
             self.save_model_json()  # Save partial info to file for cleanup.
+            raise e
 
 
 def print_script_help() -> None:
@@ -551,29 +566,26 @@ if __name__ == "__main__":
     volumes = []
     # total arguments
     num_args = len(sys.argv)
-    # Deploy Cephadm over LXD if no arguments passed.
-    if num_args == 1:
-        try:
+    try:
+        # Deploy Cephadm over LXD if no arguments passed.
+        if num_args == 1:
             runner = DeployRunner()
             runner.deploy_cephadm()
-        except Exception as e:
-            print("Failed deploying Cephadm over LXD: Error {}".format(e))
-    else:  # If arguments are passed.
-        if sys.argv[1] == "delete":
-            try:
+        else:  # If arguments are passed.
+            if sys.argv[1] == "delete":
                 Cleaner(sys.argv[2])
-            except Exception as e:
-                print("Delete operation failed! {}".format(e))
-                print_script_help()
-        # Deploy cephadm with custom image from registry.
-        elif sys.argv[1] == "image":
-            try:
+            # Deploy cephadm with custom image from registry.
+            elif sys.argv[1] == "image":
                 image = sys.argv[2]
                 runner = DeployRunner()
                 runner.deploy_cephadm(custom_image=image)
-            except Exception as e:
-                print("Failed deploying Cephadm over LXD: Error {}"
-                      .format(e))
+            # If additional build args are passed for docker build.
+            elif sys.argv[1] == "build-arg":
+                arg = sys.argv[2]
+                runner = DeployRunner()
+                runner.deploy_cephadm(build_arg=arg)
+            else:
                 print_script_help()
-        else:
-            print_script_help()
+    except Exception as e:
+        print("Operation Failed: Error {}".format(e))
+        raise e

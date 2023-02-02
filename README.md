@@ -45,6 +45,15 @@ Successfully built 4edce85e2d97
 Successfully tagged canonical/ceph:latest
 ```
 
+**_NOTE:_**
+Due to a provisional fix additional build arguments are temporarily required to be provided for building the container image.
+```
+$ sudo docker build -t canonical/ceph:latest --build-arg CUSTOM_APT_REPO=ppa:peter-sabaini/ceph-test .
+Sending build context to Docker daemon  1.655MB
+...
+Successfully tagged canonical/ceph:latest
+```
+
 All images available locally can be checked through:
 ```
 $ sudo docker images
