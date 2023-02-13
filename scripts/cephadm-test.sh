@@ -12,7 +12,8 @@ function install_pkg() {
 function bootstrap() {
     local image="${1:missing}"
     local ip="${2:?missing}"
-    sudo cephadm --image $image bootstrap --mon-ip $ip
+    sudo cephadm --image $image bootstrap --mon-ip $ip --single-host-defaults
+    df -H
 }
 
 function get_ip() {

@@ -7,9 +7,9 @@ config:
       ignore_growroot_disabled: false
 description: LXD profile for Cephadm based OCI image testing.
 devices:
-  config:
-    source: cloud-init:config
-    type: disk
+  # config:
+  #   source: cloud-init:config
+  #   type: disk
   eth0:
     nictype: bridged
     parent: lxdbr0

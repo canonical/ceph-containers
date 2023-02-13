@@ -47,14 +47,14 @@ class Cleaner:
             vm_name = model["vm_name"]
             if self.client.instances.exists(vm_name):
                 print("Deleting VM {}".format(vm_name))
-                vm = self.client.virtual_machines.get(vm_name)
+                vm = self.client.containers.get(vm_name)
                 vm.stop(wait=True)
                 vm.delete(wait=True)
 
         if "profile" in model:
             profile_name = model["profile"]
             if self.client.profiles.exists(profile_name):
-                print("Deleting VM Profile {}".format(vm_name))
+                print("Deleting VM Profile {}".format(profile_name))
                 self.client.profiles.get(profile_name).delete()
 
         if "storage_pool" in model:
@@ -79,7 +79,8 @@ class Cleaner:
 
 class DeployRunner:
     # LXD Vars
-    deploy_tag = "ubuntu-ceph-" + _get_random_string(4)
+    model_id = _get_random_string(4)
+    deploy_tag = "ubuntu-ceph-" + model_id
     complete_repo_path = "/home/ubuntu"
     cwd = os.getcwd()
     # Script Parent Directory.
@@ -99,7 +100,7 @@ class DeployRunner:
         self.check_lxd_initialised()
         # File to store LXD virtual resource references.
         self.modelFilePath = "{}/model-{}.json".format(
-            self.cwd, _get_random_string(4)
+            self.cwd, self.model_id
         )
 
     def save_model_json(self):
@@ -214,7 +215,7 @@ class DeployRunner:
         vm_name = self.deploy_tag + "-" + _get_random_string(4)
         config = {
             "name": vm_name,
-            "instance_type": flavor,
+            # "instance_type": flavor,
             "storage": pool_name,
             "profiles": [profile_name],
             "devices": {
@@ -238,15 +239,16 @@ class DeployRunner:
 
         # Create VM
         print("Creating VM {}".format(vm_name))
-        self.client.virtual_machines.create(config, wait=True)
+        self.client.containers.create(config, wait=True)
         self.model["vm_name"] = vm_name
 
         if is_start:
-            self.client.virtual_machines.get(vm_name).start(wait=True)
+            self.client.containers.get(vm_name).start(wait=True)
 
         self.wait_for_vm_ready(vm_name)
         # Increase Root Partition size on VM.
-        self.grow_root_partition(vm_name)
+        # self.grow_root_partition(vm_name)
+        self.enable_docker_in_lxc(vm_name)
         return vm_name  # vm_name to refer to the newly create vm.
 
     def vm_exists(self, vm_name: string) -> bool:
@@ -331,6 +333,9 @@ class DeployRunner:
         pool_name=deploy_tag,
     ) -> list:
         """Create Storage Volume from test storage pool"""
+        # Note: At the moment of writing this script, using custom block
+        # volumes with LXD containers is not supprted.
+        # REF: https://github.com/lxc/lxd/issues/10077
         if not self.client:
             raise PreconditionError("LXD Client not available to runner.")
 
@@ -383,6 +388,26 @@ class DeployRunner:
         time.sleep(5)  # Sleep for 5 sec.
         self.check_call_on_vm(vm_name, ["resize2fs", "/dev/sda2"])
 
+    def enable_docker_in_lxc(self, vm_name: string) -> None:
+        """Enable Docker inside LXC contianers"""
+        if self.vm_exists(vm_name):
+            inner_cmd = [
+                "lxc", "config", "set", vm_name,
+            ]
+
+            try:
+                subprocess.check_call([*inner_cmd, "security.nesting=true"])
+                subprocess.check_call([
+                    *inner_cmd, "security.syscalls.intercept.mknod=true"
+                ])
+                subprocess.check_call([
+                    *inner_cmd, "security.syscalls.intercept.setxattr=true"
+                ])
+            except subprocess.CalledProcessError as e:
+                print("Failed to Enable Docker on {}: Output {}"
+                      .format(vm_name, e))
+                raise e
+
     def sync_repo_to_vm(
         self, vm_name: string, src_path: string = None, repo_path="/home/"
     ) -> None:
@@ -407,23 +432,34 @@ class DeployRunner:
     def prepare_container_image(
         self,
         vm_name,
-        build_arg: string = None,
+        build_arg: str = None,
+        tar_file_path: str = None,
         relative_script_path="test/scripts/cephadm_helper.sh",
     ) -> None:
-        """Make built image available on local registry"""
+        """Run Helper scripts to make Container image available."""
         # NOTE: The dockerfile is always expected to be at the root of repo.
-        if build_arg is None:
+        # Use provided Tar file to serve container image.
+        if tar_file_path is not None:
             self.exec_remote_script(
                 vm_name, relative_script_path,
-                ["prep_docker", self.complete_repo_path]
+                [
+                    "prep_docker_for_tar",
+                    self.complete_repo_path+"/"+tar_file_path.split('/')[-1]
+                ]
             )
-        else:
+        # Use provided arg for building container image.
+        elif build_arg is not None:
             self.exec_remote_script(
                 vm_name, relative_script_path,
                 [
                     "prep_docker", "--build-arg", build_arg,
                     self.complete_repo_path
                 ]
+            )
+        else:
+            self.exec_remote_script(
+                vm_name, relative_script_path,
+                ["prep_docker", self.complete_repo_path]
             )
 
     def bootstrap_cephadm(
@@ -524,23 +560,44 @@ class DeployRunner:
             self.check_output_on_cephadm_shell(vm_name, cmd)
 
     def deploy_cephadm(
-        self, custom_image: str = None, build_arg: str = None
+        self, custom_image: str = None, build_arg: str = None,
+        tar_file_path: str = None
     ) -> None:
         '''Deploy cephadm over LXD host.'''
         try:
             self.create_storage_pool()
-            volumes = self.create_storage_volume()
+            # volumes = self.create_storage_volume()
+            volumes = []
             self.create_vm_profile(tuple(volumes))
             vm_name = self.create_vm()
             self.sync_repo_to_vm(vm_name)
             self.install_apt_package(vm_name)
 
-            # Build Container Image if custom image not provided.
-            if custom_image is None:
+            # Use custom image if provided.
+            if custom_image is not None:
+                # Configure Insecure registry if required.
+                if ':5000' in custom_image:
+                    registry = custom_image.split(':')[0]
+                    self.exec_remote_script(
+                        vm_name, "test/scripts/cephadm_helper.sh",
+                        ["configure_insecure_registry", registry]
+                    )
+                self.bootstrap_cephadm(vm_name, image=custom_image)
+            # Use built tar file to serve image.
+            elif tar_file_path is not None:
+                # Push repository files to LXD VM.
+                self.push_to_vm_recursively(
+                    vm_name=vm_name, src_path=tar_file_path,
+                    target_path=self.complete_repo_path
+                )
+                self.prepare_container_image(
+                    vm_name, tar_file_path=tar_file_path
+                )
+                self.bootstrap_cephadm(vm_name)
+            # Build Container Image.
+            else:
                 self.prepare_container_image(vm_name, build_arg=build_arg)
                 self.bootstrap_cephadm(vm_name)
-            else:
-                self.bootstrap_cephadm(vm_name, image=custom_image)
 
             self.add_osds(vm_name)
             self.patch_ceph_rules_for_single_node(vm_name)
@@ -584,6 +641,11 @@ if __name__ == "__main__":
                 arg = sys.argv[2]
                 runner = DeployRunner()
                 runner.deploy_cephadm(build_arg=arg)
+            # If ceph-container image is passed as a tar.
+            elif sys.argv[1] == "tar":
+                arg = sys.argv[2]
+                runner = DeployRunner()
+                runner.deploy_cephadm(tar_file_path=arg)
             else:
                 print_script_help()
     except Exception as e:
