@@ -258,7 +258,3 @@ jobs:
         uses: ./.github/workflows/collect-logs
         with:
           name: canary
-        
-      - name: consider debugging
-        uses: lhotari/action-upterm@v1
-        if: failure()
