@@ -73,10 +73,6 @@ jobs:
       - name: add osd
         run:  ./scripts/cephadm-test.sh add_osds
 
-      - name: consider debugging
-        uses: lhotari/action-upterm@v1
-        if: failure()
-
   RookTest:
     needs: build
     runs-on: ubuntu-latest
