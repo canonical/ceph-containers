@@ -1,6 +1,5 @@
 #!/usr/bin/python3
 import os
-import sys
 import pwd
 import json
 import yaml
@@ -8,6 +7,7 @@ import time
 import pylxd
 import string
 import random
+import argparse
 import subprocess
 
 
@@ -21,12 +21,13 @@ def _get_random_string(length: int) -> string:
 
 # Custom Errors
 class PreconditionError(Exception):
-    '''Custom Error class for unmet precondition errors.'''
+    """Custom Error class for unmet precondition errors."""
+
     def __init__(self, description: string):
         self.description = description
 
     def __str__(self):
-        return (repr(self.description))
+        return repr(self.description)
 
 
 class Cleaner:
@@ -67,8 +68,9 @@ class Cleaner:
                     for volume in volumes:
                         # Delete Volume.
                         print(
-                            "Deleting Volume {} from Pool {}"
-                            .format(volume, pool_name)
+                            "Deleting Volume {} from Pool {}".format(
+                                volume, pool_name
+                            )
                         )
                         pool.volumes.get("custom", volume).delete()
 
@@ -86,7 +88,7 @@ class DeployRunner:
     # Script Parent Directory.
     spd = os.path.dirname(os.path.realpath(__file__))
     usr = pwd.getpwuid(os.getuid())[0]
-    modelFilePath = ""
+    model_file_path = ""
     model = dict()
 
     def __init__(self) -> None:
@@ -99,16 +101,17 @@ class DeployRunner:
         # Check if LXD is initialised.
         self.check_lxd_initialised()
         # File to store LXD virtual resource references.
-        self.modelFilePath = "{}/model-{}.json".format(
+        self.model_file_path = "{}/model-{}.json".format(
             self.cwd, self.model_id
         )
 
     def save_model_json(self):
         """Save vm resource dictionary to json file."""
-        with open(self.modelFilePath, "w") as model_file:
+        with open(self.model_file_path, "w") as model_file:
             json.dump(self.model, model_file, indent=4)
-            print("Model information exported to {}"
-                  .format(self.modelFilePath))
+            print(
+                "Model information exported to {}".format(self.model_file_path)
+            )
 
     def check_snaps_installed(self, required_snaps: tuple = None):
         """Check if snap dependencies are met."""
@@ -119,14 +122,17 @@ class DeployRunner:
 
         cmd = ["snap", "list"]
         output = subprocess.check_output(cmd).decode()
-        snaps = list(map(
+        snaps = list(
+            map(
                 lambda snap_entry: snap_entry.split(" ")[0],
-                output.splitlines()
-            ))
+                output.splitlines(),
+            )
+        )
 
         if not all(snap in snaps for snap in check_snaps):
-            raise PreconditionError("Required snaps not installed: {}"
-                                    .format(snaps))
+            raise PreconditionError(
+                "Required snaps not installed: {}".format(snaps)
+            )
 
     def check_user_in_group(self, group_name="lxd"):
         """Check if current user belongs to provided user group"""
@@ -143,8 +149,12 @@ class DeployRunner:
                 "\nnewgrp {}"
                 "\nsudo usermod -aG {} {}"
                 "Output: {}".format(
-                    self.usr, group_name, group_name, self.usr,
-                    group_name, output
+                    self.usr,
+                    group_name,
+                    group_name,
+                    self.usr,
+                    group_name,
+                    output,
                 )
             )
 
@@ -157,8 +167,9 @@ class DeployRunner:
         devices = self.client.profiles.get("default").devices
         if not all(device in devices for device in default_devices):
             # if both default initialised network and root device do not exist.
-            raise PreconditionError("LXD not initialised,"
-                                    "please use 'lxd init --auto'")
+            raise PreconditionError(
+                "LXD not initialised," "please use 'lxd init --auto'"
+            )
 
     def create_storage_pool(self, driver="dir", pool_name=deploy_tag) -> None:
         """Create storage pool for LXD."""
@@ -171,7 +182,7 @@ class DeployRunner:
             self.client.storage_pools.create(config)
         self.model["storage_pool"] = pool_name
 
-    def create_vm_profile(
+    def create_container_profile(
         self, volumes: tuple, pool_name=deploy_tag, profile_name=deploy_tag
     ) -> None:
         """Create a VM profile for LXD"""
@@ -223,7 +234,7 @@ class DeployRunner:
                     "path": "/",
                     "pool": pool_name,
                     "size": "20GB",
-                    "type": "disk"
+                    "type": "disk",
                 }
             },
             "source": {
@@ -245,14 +256,14 @@ class DeployRunner:
         if is_start:
             self.client.containers.get(vm_name).start(wait=True)
 
-        self.wait_for_vm_ready(vm_name)
+        self.wait_for_container_ready(vm_name)
         # Increase Root Partition size on VM.
         # self.grow_root_partition(vm_name)
-        self.enable_docker_in_lxc(vm_name)
+        # self.enable_docker_in_lxc(vm_name)
         return vm_name  # vm_name to refer to the newly create vm.
 
     def vm_exists(self, vm_name: string) -> bool:
-        '''Check if LXD VM exists.'''
+        """Check if LXD VM exists."""
         if not self.client:
             raise PreconditionError("LXD Client not available to runner.")
 
@@ -271,8 +282,9 @@ class DeployRunner:
                 subprocess.check_call(inner_cmd)
             except subprocess.CalledProcessError as e:
                 if is_fail_print:
-                    print("Failed Executing on {}: Output {}"
-                          .format(vm_name, e))
+                    print(
+                        "Failed Executing on {}: Output {}".format(vm_name, e)
+                    )
                 raise e
 
     def check_output_on_cephadm_shell(
@@ -281,23 +293,32 @@ class DeployRunner:
         """Execute cmd on cephadm and return output"""
         if self.vm_exists(vm_name):
             inner_cmd = [
-                "lxc", "exec", vm_name, "--", "cephadm", "shell", *cmd
+                "lxc",
+                "exec",
+                vm_name,
+                "--",
+                "cephadm",
+                "shell",
+                *cmd,
             ]
             try:
                 return subprocess.check_output(inner_cmd).decode("UTF-8")
             except subprocess.CalledProcessError as e:
                 if is_fail_print:
-                    print("Failed Cephadm Execution on {}: Output {}"
-                          .format(vm_name, e))
+                    print(
+                        "Failed Cephadm Execution on {}: Output {}".format(
+                            vm_name, e
+                        )
+                    )
                 raise e
 
-    def wait_for_vm_ready(self, vm_name, max_attempt=20) -> None:
-        isVmReady = False
+    def wait_for_container_ready(self, vm_name, max_attempt=20) -> None:
+        is_container_ready = False
         counter = 0
-        while not isVmReady:
+        while not is_container_ready:
             try:
                 self.check_call_on_vm(vm_name, ["ls"], is_fail_print=False)
-                isVmReady = True
+                is_container_ready = True
             except subprocess.CalledProcessError as e:
                 counter += 1
                 print("Attempt {}: VM not ready".format(counter))
@@ -305,7 +326,7 @@ class DeployRunner:
                     raise e
                 time.sleep(10)  # Sleep for 10 sec.
 
-    def push_to_vm_recursively(
+    def push_to_container_recursively(
         self, vm_name: string, src_path: string, target_path: string
     ) -> None:
         """Send Files (recursively) to VM"""
@@ -322,8 +343,11 @@ class DeployRunner:
             try:
                 subprocess.check_call(cmd)
             except subprocess.CalledProcessError as e:
-                print("Failed Pushing {} to {}: Output {}"
-                      .format(src_path, vm_name, e))
+                print(
+                    "Failed Pushing {} to {}: Output {}".format(
+                        src_path, vm_name, e
+                    )
+                )
                 raise e
 
     def create_storage_volume(
@@ -340,15 +364,18 @@ class DeployRunner:
             raise PreconditionError("LXD Client not available to runner.")
 
         if not self.client.storage_pools.exists(pool_name):
-            raise PreconditionError("Storage Pool {} does not exist."
-                                    .format(pool_name))
+            raise PreconditionError(
+                "Storage Pool {} does not exist.".format(pool_name)
+            )
 
         storage_pool = self.client.storage_pools.get(pool_name)
         volumes = []
         for iter in range(0, count):
             vol_name = "vol-" + _get_random_string(4)
             config = {
-                "name": vol_name, "type": "custom", "content_type": "block"
+                "name": vol_name,
+                "type": "custom",
+                "content_type": "block",
             }
 
             # Creating Storage Volume.
@@ -361,14 +388,18 @@ class DeployRunner:
         return volumes
 
     def exec_remote_script(
-        self, vm_name: string, relative_script_path: string,
-        params=[], op_print=True
+        self,
+        vm_name: string,
+        relative_script_path: string,
+        params=[],
+        op_print=True,
     ) -> None:
         """Execute a remote script on LXD VM."""
         if self.vm_exists(vm_name):
             cmd = [
-                "bash", self.complete_repo_path + "/" + relative_script_path,
-                *params
+                "bash",
+                self.complete_repo_path + "/" + relative_script_path,
+                *params,
             ]
             if op_print:
                 print("Executing on {}: CMD: {}".format(vm_name, cmd))
@@ -392,20 +423,26 @@ class DeployRunner:
         """Enable Docker inside LXC contianers"""
         if self.vm_exists(vm_name):
             inner_cmd = [
-                "lxc", "config", "set", vm_name,
+                "lxc",
+                "config",
+                "set",
+                vm_name,
             ]
 
             try:
                 subprocess.check_call([*inner_cmd, "security.nesting=true"])
-                subprocess.check_call([
-                    *inner_cmd, "security.syscalls.intercept.mknod=true"
-                ])
-                subprocess.check_call([
-                    *inner_cmd, "security.syscalls.intercept.setxattr=true"
-                ])
+                subprocess.check_call(
+                    [*inner_cmd, "security.syscalls.intercept.mknod=true"]
+                )
+                subprocess.check_call(
+                    [*inner_cmd, "security.syscalls.intercept.setxattr=true"]
+                )
             except subprocess.CalledProcessError as e:
-                print("Failed to Enable Docker on {}: Output {}"
-                      .format(vm_name, e))
+                print(
+                    "Failed to Enable Docker on {}: Output {}".format(
+                        vm_name, e
+                    )
+                )
                 raise e
 
     def sync_repo_to_vm(
@@ -414,52 +451,48 @@ class DeployRunner:
         """Copies the Repository to LXD Vm for building"""
         if src_path is None:
             # Going one directory "UP" from test.
-            src_path = '/'.join(self.spd.split('/')[0:-1])
+            src_path = "/".join(self.spd.split("/")[0:-1])
 
         try:
             # Storing for later use.
             self.complete_repo_path = repo_path + src_path.split("/")[-1]
         except KeyError as e:
-            print("Unable to fetch repo directory from source path {}"
-                  .format(src_path))
+            print(
+                "Unable to fetch repo directory from source path {}".format(
+                    src_path
+                )
+            )
             raise e
 
         # Push repository files to LXD VM.
-        self.push_to_vm_recursively(
-            vm_name=vm_name, src_path=src_path + '/', target_path=repo_path
+        self.push_to_container_recursively(
+            vm_name=vm_name, src_path=src_path + "/", target_path=repo_path
         )
 
     def prepare_container_image(
         self,
         vm_name,
         build_arg: str = None,
-        tar_file_path: str = None,
         relative_script_path="test/scripts/cephadm_helper.sh",
     ) -> None:
         """Run Helper scripts to make Container image available."""
         # NOTE: The dockerfile is always expected to be at the root of repo.
-        # Use provided Tar file to serve container image.
-        if tar_file_path is not None:
+        if build_arg is not None:
             self.exec_remote_script(
-                vm_name, relative_script_path,
+                vm_name,
+                relative_script_path,
                 [
-                    "prep_docker_for_tar",
-                    self.complete_repo_path+"/"+tar_file_path.split('/')[-1]
-                ]
-            )
-        # Use provided arg for building container image.
-        elif build_arg is not None:
-            self.exec_remote_script(
-                vm_name, relative_script_path,
-                [
-                    "prep_docker", "--build-arg", build_arg,
-                    self.complete_repo_path
-                ]
+                    "prep_docker",
+                    "--build-arg",
+                    build_arg,
+                    self.complete_repo_path,
+                ],
             )
         else:
             self.exec_remote_script(
-                vm_name, relative_script_path,
-                ["prep_docker", self.complete_repo_path]
+                vm_name,
+                relative_script_path,
+                ["prep_docker", self.complete_repo_path],
             )
 
     def bootstrap_cephadm(
@@ -505,8 +538,9 @@ class DeployRunner:
             osd_count = status["osdmap"]["num_osds"]
             if osd_count >= expected_osd_num:
                 break
-            print("Attempt {}: OSD not up! Count {}"
-                  .format(attempt, osd_count))
+            print(
+                "Attempt {}: OSD not up! Count {}".format(attempt, osd_count)
+            )
             time.sleep(60)  # Wait for a minute
 
         status = json.loads(
@@ -517,58 +551,18 @@ class DeployRunner:
             raise EnvironmentError("OSDs not up Count {}".format(osd_count))
         print("OSD Count {}".format(osd_count))
 
-    def patch_ceph_rules_for_single_node(self, vm_name: string) -> None:
-        """Creates a suitable replication rule for single node deployments."""
-        # Create a new rule with OSD as failure domain.
-        new_rule_name = "new_replication_rule_osd"
-        cmd = [
-            "ceph",
-            "osd",
-            "crush",
-            "rule",
-            "create-replicated",
-            new_rule_name,
-            "default",
-            "osd",
-        ]
-        self.check_output_on_cephadm_shell(vm_name, cmd)
-
-        # Make new rule default for all pools.
-        cmd = ["ceph", "osd", "pool", "ls", "-f", "json"]
-        pools = json.loads(self.check_output_on_cephadm_shell(vm_name, cmd))
-        for pool in pools:
-            cmd = [
-                "ceph", "osd", "pool", "set", pool,
-                "crush_rule", new_rule_name
-            ]
-            self.check_output_on_cephadm_shell(vm_name, cmd)
-
-        # Fetch and delete other replication rules
-        cmd = ["ceph", "osd", "crush", "rule", "dump", "-f", "json"]
-        rules = json.loads(self.check_output_on_cephadm_shell(vm_name, cmd))
-        for rule in list(rules):
-            if rule["rule_name"] == new_rule_name:
-                continue
-            cmd = [
-                "ceph",
-                "osd",
-                "crush",
-                "rule",
-                "rm",
-                rule["rule_name"],
-            ]
-            self.check_output_on_cephadm_shell(vm_name, cmd)
-
     def deploy_cephadm(
-        self, custom_image: str = None, build_arg: str = None,
-        tar_file_path: str = None
+        self,
+        custom_image: str = None,
+        build_arg: str = None,
+        expected_osd_num: int = 1
     ) -> None:
-        '''Deploy cephadm over LXD host.'''
+        """Deploy cephadm over LXD host."""
         try:
             self.create_storage_pool()
             # volumes = self.create_storage_volume()
             volumes = []
-            self.create_vm_profile(tuple(volumes))
+            self.create_container_profile(tuple(volumes))
             vm_name = self.create_vm()
             self.sync_repo_to_vm(vm_name)
             self.install_apt_package(vm_name)
@@ -576,31 +570,20 @@ class DeployRunner:
             # Use custom image if provided.
             if custom_image is not None:
                 # Configure Insecure registry if required.
-                if ':5000' in custom_image:
-                    registry = custom_image.split(':')[0]
+                if ":5000" in custom_image:
+                    registry = custom_image.split(":")[0]
                     self.exec_remote_script(
-                        vm_name, "test/scripts/cephadm_helper.sh",
-                        ["configure_insecure_registry", registry]
+                        vm_name,
+                        "test/scripts/cephadm_helper.sh",
+                        ["configure_insecure_registry", registry],
                     )
                 self.bootstrap_cephadm(vm_name, image=custom_image)
-            # Use built tar file to serve image.
-            elif tar_file_path is not None:
-                # Push repository files to LXD VM.
-                self.push_to_vm_recursively(
-                    vm_name=vm_name, src_path=tar_file_path,
-                    target_path=self.complete_repo_path
-                )
-                self.prepare_container_image(
-                    vm_name, tar_file_path=tar_file_path
-                )
-                self.bootstrap_cephadm(vm_name)
             # Build Container Image.
             else:
                 self.prepare_container_image(vm_name, build_arg=build_arg)
                 self.bootstrap_cephadm(vm_name)
 
-            self.add_osds(vm_name)
-            self.patch_ceph_rules_for_single_node(vm_name)
+            self.add_osds(vm_name, expected_osd_num=expected_osd_num)
             self.save_model_json()
         except Exception as e:
             print("Failed deploying Cephadm over LXD: Error {}".format(e))
@@ -608,46 +591,73 @@ class DeployRunner:
             raise e
 
 
-def print_script_help() -> None:
-    print("Script Usage Help:")
-    print("1.) Use Script to deploy a new Cephadm host:\n$ python3 deploy.py")
-    print("2.) Use Script to clean a deployment:\n$ python3 deploy.py delete "
-          "<model_file_path>")
-    print("3.) Use Script to deploy a custom image:\n$ python3 deploy.py "
-          "image <image_name>\n-> e.g. <image_name>: ceph/ceph:latest")
-    print("Incorrect Usage will print Help Text.")
+# Subcommand Callbacks
+def delete(args):
+    print("Executing Clean: {}".format(args))
+    Cleaner(args.model_file_path)
+
+
+def image(args):
+    print("Executing Image: {}".format(args))
+    runner = DeployRunner()
+    runner.deploy_cephadm(custom_image=args.image_reference, expected_osd_num=args.osd_num)
+
+
+def build(args):
+    print("Executing Build: {}".format(args))
+    if args.build_args is not None:
+        # Build with build arguments.
+        runner = DeployRunner()
+        runner.deploy_cephadm(build_arg=args.build_args, expected_osd_num=args.osd_num)
+    else:
+        runner = DeployRunner()
+        runner.deploy_cephadm()
 
 
 if __name__ == "__main__":
-    vm_name = ""
-    volumes = []
-    # total arguments
-    num_args = len(sys.argv)
-    try:
-        # Deploy Cephadm over LXD if no arguments passed.
-        if num_args == 1:
-            runner = DeployRunner()
-            runner.deploy_cephadm()
-        else:  # If arguments are passed.
-            if sys.argv[1] == "delete":
-                Cleaner(sys.argv[2])
-            # Deploy cephadm with custom image from registry.
-            elif sys.argv[1] == "image":
-                image = sys.argv[2]
-                runner = DeployRunner()
-                runner.deploy_cephadm(custom_image=image)
-            # If additional build args are passed for docker build.
-            elif sys.argv[1] == "build-arg":
-                arg = sys.argv[2]
-                runner = DeployRunner()
-                runner.deploy_cephadm(build_arg=arg)
-            # If ceph-container image is passed as a tar.
-            elif sys.argv[1] == "tar":
-                arg = sys.argv[2]
-                runner = DeployRunner()
-                runner.deploy_cephadm(tar_file_path=arg)
-            else:
-                print_script_help()
-    except Exception as e:
-        print("Operation Failed: Error {}".format(e))
-        raise e
+    argparse = argparse.ArgumentParser(
+        description="Cephadm Deployment Script",
+        epilog="Ex: python3 ./test/deploy.py image canonical/ceph:latest",
+    )
+
+    sub_parsers = argparse.add_subparsers(title="commands", dest="cmd")
+
+    # Delete Subcommand
+    del_parser = sub_parsers.add_parser(
+        "delete", help="Delete Script generated lxd resources."
+    )
+    del_parser.add_argument(
+        "model_file_path", help="Path to script generated json file."
+    )
+    del_parser.set_defaults(func=delete)
+
+    # Custom Image  Subcommand
+    img_parser = sub_parsers.add_parser(
+        "image", help="Use custom images to deploy cephadm."
+    )
+    img_parser.add_argument(
+        "image_reference", help="Fully Qualified image reference"
+    )
+    img_parser.add_argument(
+        "--osd-num", type=int, help="Optionally provide expected number of osd-daemons."
+    )
+    img_parser.set_defaults(func=image)
+
+    # Build Subcommand
+    build_parser = sub_parsers.add_parser(
+        "build", help="Build and deploy cephadm from repo."
+    )
+    build_parser.add_argument(
+        "--build-args", help="Provide optional build-args to Docker."
+    )
+    build_parser.add_argument(
+        "--osd-num", type=int, help="Optionally provide expected number of osd-daemons."
+    )
+    build_parser.set_defaults(func=build)
+
+    # Parse the args.
+    args = argparse.parse_args()
+    print(args)
+
+    # Call the subcommand.
+    args.func(args)

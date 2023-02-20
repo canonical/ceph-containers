@@ -12,22 +12,19 @@ function prep_docker() {
     docker push localhost:5000/canonical/ceph:latest
 }
 
-function prep_docker_for_tar() {
-    echo "Prepping Docker to serve tarfile:"
-    echo $@
-    # Run a local registry.
-    docker run -d -p 5000:5000 --name registry registry:2
-    sleep 10
-    docker load --input $@
-    docker image ls -a
-    docker image tag canonical/ceph:latest localhost:5000/canonical/ceph:latest
-    docker push localhost:5000/canonical/ceph:latest
-}
+function use_local_disk() {
+    sudo lsblk -f
+    datadisk=$( sudo lsblk --paths | awk '/14G/ {print $1}' | head -1 )
+    sudo dmsetup version || true
+    sudo swapoff --all --verbose
+    sudo umount /mnt
 
-function create_loopd_on_host() {
-    # Create loop device to be used as OSDs on github runner.
-    sudo dd if=/dev/zero of=/mnt/loop/block.img bs=1 count=0 seek=10G
-    sudo losetup -fP /mnt/loop/block.img
+    sudo sgdisk --zap-all -- $datadisk
+    sudo sgdisk --clear --mbrtogpt -- $datadisk
+    end=$(( $( sudo blockdev --getsz $datadisk ) - 100 ))
+    sudo dd if=/dev/zero of=$datadisk bs=1M count=1
+    sudo dd if=/dev/zero of=$datadisk bs=512 count=100 seek=${end?}
+    sudo lsblk -f
 }
 
 function configure_insecure_registry() {

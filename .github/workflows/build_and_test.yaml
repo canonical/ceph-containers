@@ -108,22 +108,14 @@ jobs:
       - name: install dependencies
         run: |
           sudo python -m pip install --upgrade pip
-          sudo pip install flake8 pylxd pyyaml
+          sudo pip install flake8 pep8-naming pylxd pyyaml argparse
 
       - name: Lint Check
         run: |
           flake8 . --count --show-source --statistics
 
-      - name: Mod Docker to use custom root
-        run: |
-          sudo mkdir /mnt/docker
-          jq -c '."data-root" = "/mnt/docker"' /etc/docker/daemon.json > tmp.$$.json && sudo mv tmp.$$.json /etc/docker/daemon.json
-          sudo systemctl restart docker
-
-      - name: make loop device
-        run: |
-          sudo mkdir /mnt/loop
-          ./test/scripts/cephadm_helper.sh create_loopd_on_host
+      - name: use local block device
+        run: ./test/scripts/cephadm_helper.sh use_local_disk
 
       - name: Load image to registry
         run: |
