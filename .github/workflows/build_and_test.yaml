@@ -140,7 +140,7 @@ jobs:
       - name: Deploy Cephadm over LXD
         run: |
           reg_addr=$(./scripts/cephadm-test.sh get_ip)
-          sudo python test/deploy.py image "$reg_addr:5000/canonical/ceph:latest"
+          sudo python test/deploy.py image "$reg_addr:5000/canonical/ceph:latest" --osd-num 0 --container
 
       - name: consider debugging
         uses: lhotari/action-upterm@v1

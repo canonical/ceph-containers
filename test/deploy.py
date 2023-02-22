@@ -48,9 +48,17 @@ class Cleaner:
             vm_name = model["vm_name"]
             if self.client.instances.exists(vm_name):
                 print("Deleting VM {}".format(vm_name))
-                vm = self.client.containers.get(vm_name)
+                vm = self.client.virtual_machines.get(vm_name)
                 vm.stop(wait=True)
                 vm.delete(wait=True)
+
+        if "container_name" in model:
+            container = model["container_name"]
+            if self.client.instances.exists(container):
+                print("Deleting VM {}".format(container))
+                cm = self.client.containers.get(container)
+                cm.stop(wait=True)
+                cm.delete(wait=True)
 
         if "profile" in model:
             profile_name = model["profile"]
@@ -86,7 +94,7 @@ class DeployRunner:
     complete_repo_path = "/home/ubuntu"
     cwd = os.getcwd()
     # Script Parent Directory.
-    spd = os.path.dirname(os.path.realpath(__file__))
+    s_pwd = os.path.dirname(os.path.realpath(__file__))
     usr = pwd.getpwuid(os.getuid())[0]
     model_file_path = ""
     model = dict()
@@ -106,7 +114,7 @@ class DeployRunner:
         )
 
     def save_model_json(self):
-        """Save vm resource dictionary to json file."""
+        """Save lxd resource dictionary to json file."""
         with open(self.model_file_path, "w") as model_file:
             json.dump(self.model, model_file, indent=4)
             print(
@@ -182,17 +190,28 @@ class DeployRunner:
             self.client.storage_pools.create(config)
         self.model["storage_pool"] = pool_name
 
-    def create_container_profile(
-        self, volumes: tuple, pool_name=deploy_tag, profile_name=deploy_tag
+    def create_instance_profile(
+        self,
+        volumes: tuple,
+        pool_name=deploy_tag,
+        profile_name=deploy_tag,
+        is_container=False,
     ) -> None:
         """Create a VM profile for LXD"""
         if not self.client:
             raise PreconditionError("LXD Client not available to runner.")
 
+        if is_container:
+            profile_template_name = "container_profile.yaml"
+        else:
+            profile_template_name = "vm_profile.yaml"
+
         # If profile exists, it is expected to be already configured.
         if not self.client.profiles.exists(profile_name):
             # Load Profile yaml
-            with open(self.spd + "/profile.yaml", "r") as profile:
+            with open(
+                self.s_pwd + "/" + profile_template_name, "r"
+            ) as profile:
                 config = yaml.safe_load(profile.read())
 
             devices = config["devices"]
@@ -217,16 +236,16 @@ class DeployRunner:
         pool_name=deploy_tag,
         profile_name=deploy_tag,
         is_start=True,
+        is_container=False,
     ) -> string:
         """Create a virtual machine for LXD."""
         if not self.client:
             raise PreconditionError("LXD Client not available to runner.")
 
-        # Create Virtual Machine
-        vm_name = self.deploy_tag + "-" + _get_random_string(4)
+        # Create Instance
+        instance_name = self.deploy_tag + "-" + _get_random_string(4)
         config = {
-            "name": vm_name,
-            # "instance_type": flavor,
+            "name": instance_name,
             "storage": pool_name,
             "profiles": [profile_name],
             "devices": {
@@ -248,19 +267,30 @@ class DeployRunner:
             },
         }
 
-        # Create VM
-        print("Creating VM {}".format(vm_name))
-        self.client.containers.create(config, wait=True)
-        self.model["vm_name"] = vm_name
+        if not is_container:
+            # Add Flavor for VM Instance.
+            config["instance_type"] = flavor
 
-        if is_start:
-            self.client.containers.get(vm_name).start(wait=True)
+        # Create Instance
+        if is_container:
+            print("Creating Container {}".format(instance_name))
+            self.client.containers.create(config, wait=True)
+            self.model["container_name"] = instance_name
+            if is_start:
+                self.client.containers.get(instance_name).start(wait=True)
+        else:
+            print("Creating VM {}".format(instance_name))
+            self.client.virtual_machines.create(config, wait=True)
+            self.model["vm_name"] = instance_name
+            if is_start:
+                self.client.virtual_machines.get(instance_name).start(
+                    wait=True
+                )
+            self.wait_for_instance_ready(instance_name)
+            # Increase Root Partition size on VM.
+            self.grow_root_partition(instance_name)
 
-        self.wait_for_container_ready(vm_name)
-        # Increase Root Partition size on VM.
-        # self.grow_root_partition(vm_name)
-        # self.enable_docker_in_lxc(vm_name)
-        return vm_name  # vm_name to refer to the newly create vm.
+        return instance_name  # instance_name for reference.
 
     def vm_exists(self, vm_name: string) -> bool:
         """Check if LXD VM exists."""
@@ -312,7 +342,7 @@ class DeployRunner:
                     )
                 raise e
 
-    def wait_for_container_ready(self, vm_name, max_attempt=20) -> None:
+    def wait_for_instance_ready(self, vm_name, max_attempt=20) -> None:
         is_container_ready = False
         counter = 0
         while not is_container_ready:
@@ -326,7 +356,7 @@ class DeployRunner:
                     raise e
                 time.sleep(10)  # Sleep for 10 sec.
 
-    def push_to_container_recursively(
+    def push_to_instance_recursively(
         self, vm_name: string, src_path: string, target_path: string
     ) -> None:
         """Send Files (recursively) to VM"""
@@ -410,7 +440,7 @@ class DeployRunner:
         vm_name: string,
         relative_script_path="test/scripts/cephadm_helper.sh",
     ) -> None:
-        """Installs the required packages on lxd vm."""
+        """Installs the required packages on lxd machine."""
         self.exec_remote_script(vm_name, relative_script_path, ["install_apt"])
 
     def grow_root_partition(self, vm_name: string) -> None:
@@ -419,39 +449,13 @@ class DeployRunner:
         time.sleep(5)  # Sleep for 5 sec.
         self.check_call_on_vm(vm_name, ["resize2fs", "/dev/sda2"])
 
-    def enable_docker_in_lxc(self, vm_name: string) -> None:
-        """Enable Docker inside LXC contianers"""
-        if self.vm_exists(vm_name):
-            inner_cmd = [
-                "lxc",
-                "config",
-                "set",
-                vm_name,
-            ]
-
-            try:
-                subprocess.check_call([*inner_cmd, "security.nesting=true"])
-                subprocess.check_call(
-                    [*inner_cmd, "security.syscalls.intercept.mknod=true"]
-                )
-                subprocess.check_call(
-                    [*inner_cmd, "security.syscalls.intercept.setxattr=true"]
-                )
-            except subprocess.CalledProcessError as e:
-                print(
-                    "Failed to Enable Docker on {}: Output {}".format(
-                        vm_name, e
-                    )
-                )
-                raise e
-
     def sync_repo_to_vm(
         self, vm_name: string, src_path: string = None, repo_path="/home/"
     ) -> None:
         """Copies the Repository to LXD Vm for building"""
         if src_path is None:
             # Going one directory "UP" from test.
-            src_path = "/".join(self.spd.split("/")[0:-1])
+            src_path = "/".join(self.s_pwd.split("/")[0:-1])
 
         try:
             # Storing for later use.
@@ -465,7 +469,7 @@ class DeployRunner:
             raise e
 
         # Push repository files to LXD VM.
-        self.push_to_container_recursively(
+        self.push_to_instance_recursively(
             vm_name=vm_name, src_path=src_path + "/", target_path=repo_path
         )
 
@@ -555,17 +559,24 @@ class DeployRunner:
         self,
         custom_image: str = None,
         build_arg: str = None,
-        expected_osd_num: int = 1
+        expected_osd_num: int = 3,
+        is_container: bool = False,
     ) -> None:
         """Deploy cephadm over LXD host."""
         try:
             self.create_storage_pool()
-            # volumes = self.create_storage_volume()
-            volumes = []
-            self.create_container_profile(tuple(volumes))
-            vm_name = self.create_vm()
-            self.sync_repo_to_vm(vm_name)
-            self.install_apt_package(vm_name)
+
+            if not is_container:
+                volumes = self.create_storage_volume()
+            else:
+                volumes = []
+
+            self.create_instance_profile(
+                tuple(volumes), is_container=is_container
+            )
+            instance_name = self.create_vm(is_container=is_container)
+            self.sync_repo_to_vm(instance_name)
+            self.install_apt_package(instance_name)
 
             # Use custom image if provided.
             if custom_image is not None:
@@ -573,22 +584,27 @@ class DeployRunner:
                 if ":5000" in custom_image:
                     registry = custom_image.split(":")[0]
                     self.exec_remote_script(
-                        vm_name,
+                        instance_name,
                         "test/scripts/cephadm_helper.sh",
                         ["configure_insecure_registry", registry],
                     )
-                self.bootstrap_cephadm(vm_name, image=custom_image)
+                self.bootstrap_cephadm(instance_name, image=custom_image)
             # Build Container Image.
             else:
-                self.prepare_container_image(vm_name, build_arg=build_arg)
-                self.bootstrap_cephadm(vm_name)
+                self.prepare_container_image(
+                    instance_name, build_arg=build_arg
+                )
+                self.bootstrap_cephadm(instance_name)
 
-            self.add_osds(vm_name, expected_osd_num=expected_osd_num)
+            self.add_osds(instance_name, expected_osd_num=expected_osd_num)
             self.save_model_json()
         except Exception as e:
             print("Failed deploying Cephadm over LXD: Error {}".format(e))
             self.save_model_json()  # Save partial info to file for cleanup.
             raise e
+        except KeyboardInterrupt:
+            print("User Interrupted the deployment process, Exiting.")
+            self.save_model_json()
 
 
 # Subcommand Callbacks
@@ -600,18 +616,22 @@ def delete(args):
 def image(args):
     print("Executing Image: {}".format(args))
     runner = DeployRunner()
-    runner.deploy_cephadm(custom_image=args.image_reference, expected_osd_num=args.osd_num)
+    runner.deploy_cephadm(
+        custom_image=args.image_reference,
+        expected_osd_num=args.osd_num,
+        is_container=args.container,
+    )
 
 
 def build(args):
     print("Executing Build: {}".format(args))
-    if args.build_args is not None:
-        # Build with build arguments.
-        runner = DeployRunner()
-        runner.deploy_cephadm(build_arg=args.build_args, expected_osd_num=args.osd_num)
-    else:
-        runner = DeployRunner()
-        runner.deploy_cephadm()
+    # Build with build arguments.
+    runner = DeployRunner()
+    runner.deploy_cephadm(
+        build_arg=args.build_args,
+        expected_osd_num=args.osd_num,
+        is_container=args.container
+    )
 
 
 if __name__ == "__main__":
@@ -639,7 +659,18 @@ if __name__ == "__main__":
         "image_reference", help="Fully Qualified image reference"
     )
     img_parser.add_argument(
-        "--osd-num", type=int, help="Optionally provide expected number of osd-daemons."
+        "--osd-num",
+        type=int,
+        default=3,
+        help="Optionally provide expected number of osd-daemons.",
+    )
+    img_parser.add_argument(
+        "--container",
+        type=bool,
+        const=True,
+        default=False,
+        nargs="?",
+        help="Deploy cephadm over lxd container.",
     )
     img_parser.set_defaults(func=image)
 
@@ -651,13 +682,18 @@ if __name__ == "__main__":
         "--build-args", help="Provide optional build-args to Docker."
     )
     build_parser.add_argument(
-        "--osd-num", type=int, help="Optionally provide expected number of osd-daemons."
+        "--osd-num",
+        type=int,
+        default=3,
+        help="Optionally provide expected number of osd-daemons.",
+    )
+    build_parser.add_argument(
+        "--container", type=bool, help="Deploy cephadm over lxd container."
     )
     build_parser.set_defaults(func=build)
 
     # Parse the args.
     args = argparse.parse_args()
-    print(args)
 
     # Call the subcommand.
     args.func(args)
