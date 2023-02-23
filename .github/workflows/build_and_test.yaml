@@ -126,21 +126,9 @@ jobs:
           sleep 10
           docker push localhost:5000/canonical/ceph
 
-      - name: install and init lxd snap
-        run: |
-          sudo snap install lxd
-          sudo lxd init --auto
-
-      - name: clean iptables legacy
-        run: |
-          for ipt in iptables iptables-legacy ip6tables ip6tables-legacy; do sudo $ipt --flush; sudo $ipt --flush -t nat; sudo $ipt --delete-chain; sudo $ipt --delete-chain -t nat; sudo $ipt -P FORWARD ACCEPT; sudo $ipt -P INPUT ACCEPT; sudo $ipt -P OUTPUT ACCEPT; done
-          sudo systemctl reload snap.lxd.daemon
-          sleep 5
-
       - name: Deploy Cephadm over LXD
         run: |
-          reg_addr=$(./scripts/cephadm-test.sh get_ip)
-          sudo python test/deploy.py image "$reg_addr:5000/canonical/ceph:latest" --osd-num 0 --container
+          sudo python test/deploy.py --osd-num 1 --direct-host 1 image "localhost:5000/canonical/ceph:latest"
 
       - name: consider debugging
         uses: lhotari/action-upterm@v1

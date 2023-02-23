@@ -28,15 +28,53 @@ function use_local_disk() {
 }
 
 function configure_insecure_registry() {
-    echo '{"insecure-registries": []}' > /etc/docker/daemon.json
+    echo '{"insecure-registries": []}' | sudo tee /etc/docker/daemon.json
     jq --arg key "insecure-registries" --arg value "${1}:5000" '.[$key] += [$value]' /etc/docker/daemon.json > tmp.$$.json && sudo mv tmp.$$.json /etc/docker/daemon.json
-    systemctl restart docker
+    sudo systemctl restart docker
 }
 
 function install_apt() {
     # Install Apt packages.
     DEBIAN_FRONTEND=noninteractive sudo apt update
     DEBIAN_FRONTEND=noninteractive sudo apt install -y cephadm openssh-server jq
+}
+
+function bootstrap() {
+    local image="${1:missing}"
+    local ip="${2:?missing}"
+    sudo cephadm --image $image bootstrap --mon-ip $ip --single-host-defaults
+    df -H
+}
+
+function get_ip() {
+    ip -4 -j route | jq -r '.[] | select(.dst | contains("default")) | .prefsrc' | tr -d '[:space:]'
+}
+
+function deploy_cephadm() {
+    local image=${1:?missing}
+    install_pkg
+    bootstrap $image $( get_ip )
+    test_num_objs mon 1
+}
+
+function get_num_objs() {
+    local what=${1:?missing}   
+    sudo cephadm shell -- ceph status -f json | jq -r ".${what}map | .num_${what}s"
+}
+
+function test_num_objs() {
+    local what=${1:?missing}
+    local expect=${2:?missing}
+    
+    num_objs=$( get_num_objs $what )
+    if [ $num_objs == $expect ]; then
+        echo "[OK] test_num_objs $what $expect"
+    else
+        echo "[FAIL] test_num_objs $what $expect, got $num_objs"
+        echo "Ceph status"
+        sudo cephadm shell -- ceph status
+        exit -1
+    fi
 }
 
 FUNCTION="$1"
