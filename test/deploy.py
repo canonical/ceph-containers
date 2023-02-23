@@ -105,13 +105,14 @@ class DeployRunner:
     model_file_path = ""
     model = dict()
 
-    def __init__(self) -> None:
-        # Check LXD installed on host.
-        self.check_snaps_installed()
-        # init client
-        self.client = pylxd.Client()
-        # Check if LXD is initialised.
-        self.check_lxd_initialised()
+    def __init__(self, is_direct_host: bool = False) -> None:
+        if not is_direct_host:
+            # Check LXD installed on host.
+            self.check_snaps_installed()
+            # init client
+            self.client = pylxd.Client()
+            # Check if LXD is initialised.
+            self.check_lxd_initialised()
         # File to store LXD virtual resource references.
         self.model_file_path = "{}/model-{}.json".format(
             os.getcwd(), self.model_id
@@ -309,17 +310,19 @@ class DeployRunner:
         return True  # It exists.
 
     def check_call_on_vm(
-        self, vm_name: string, cmd: list, is_fail_print=True
+        self, instance_name: string, cmd: list, is_fail_print=True
     ) -> tuple:
         """Execute Command on VM."""
-        if self.instance_exists(vm_name):
-            inner_cmd = ["lxc", "exec", vm_name, "--", *cmd]
+        if self.instance_exists(instance_name):
+            inner_cmd = ["lxc", "exec", instance_name, "--", *cmd]
             try:
                 subprocess.check_call(inner_cmd)
             except subprocess.CalledProcessError as e:
                 if is_fail_print:
                     print(
-                        "Failed Executing on {}: Output {}".format(vm_name, e)
+                        "Failed Executing on {}: Output {}".format(
+                            instance_name, e
+                        )
                     )
                 raise e
 
@@ -379,12 +382,14 @@ class DeployRunner:
                 cmd=cmd,
             )
 
-    def wait_for_instance_ready(self, vm_name, max_attempt=20) -> None:
+    def wait_for_instance_ready(self, instance_name, max_attempt=20) -> None:
         is_container_ready = False
         counter = 0
         while not is_container_ready:
             try:
-                self.check_call_on_vm(vm_name, ["ls"], is_fail_print=False)
+                self.check_call_on_vm(
+                    instance_name, ["ls"], is_fail_print=False
+                )
                 is_container_ready = True
             except subprocess.CalledProcessError as e:
                 counter += 1
@@ -508,22 +513,25 @@ class DeployRunner:
 
     def install_apt_package(
         self,
-        vm_name: string,
+        instance_name: string,
         relative_script_path="test/scripts/cephadm_helper.sh",
     ) -> None:
         """Installs the required packages on lxd machine."""
         self.exec_script_on_target(
-            vm_name, relative_script_path, ["install_apt"]
+            instance_name, relative_script_path, ["install_apt"]
         )
 
-    def grow_root_partition(self, vm_name: string) -> None:
+    def grow_root_partition(self, instance_name: string) -> None:
         """Use Growpart utility to increase root partition size."""
-        self.check_call_on_vm(vm_name, ["growpart", "/dev/sda", "2"])
+        self.check_call_on_vm(instance_name, ["growpart", "/dev/sda", "2"])
         time.sleep(5)  # Sleep for 5 sec.
-        self.check_call_on_vm(vm_name, ["resize2fs", "/dev/sda2"])
+        self.check_call_on_vm(instance_name, ["resize2fs", "/dev/sda2"])
 
     def sync_repo_to_vm(
-        self, vm_name: string, src_path: string = None, target_path="/home/"
+        self,
+        instance_name: string,
+        src_path: string = None,
+        target_path="/home/",
     ) -> None:
         """Copies the Repository to LXD Vm for building"""
         if src_path is None:
@@ -543,12 +551,14 @@ class DeployRunner:
 
         # Push repository files to LXD VM.
         self.push_to_instance_recursively(
-            vm_name=vm_name, src_path=src_path + "/", target_path=target_path
+            instance_name=instance_name,
+            src_path=src_path + "/",
+            target_path=target_path,
         )
 
     def prepare_container_image(
         self,
-        vm_name,
+        instance_name: str,
         build_arg: str = None,
         relative_script_path="test/scripts/cephadm_helper.sh",
     ) -> None:
@@ -556,7 +566,7 @@ class DeployRunner:
         # NOTE: The dockerfile is always expected to be at the root of repo.
         if build_arg is not None:
             self.exec_script_on_target(
-                vm_name,
+                instance_name,
                 relative_script_path,
                 [
                     "prep_docker",
@@ -567,7 +577,7 @@ class DeployRunner:
             )
         else:
             self.exec_script_on_target(
-                vm_name,
+                instance_name,
                 relative_script_path,
                 ["prep_docker", self.target_repo_path],
             )
@@ -586,17 +596,19 @@ class DeployRunner:
         )
 
     def add_osds(
-        self, vm_name: string, check_count=10, expected_osd_num=3
+        self, instance_name: string, check_count=10, expected_osd_num=3
     ) -> None:
         """Deploy OSD Daemon using cephadm-test script."""
         print("Adding OSDs, it may take a few minutes.")
         status_cmd = ["ceph", "status", "-f", "json"]
         cmd = ["ceph", "orch", "apply", "osd", "--all-available-devices"]
-        self.check_output_on_target_cephadm_shell(vm_name, cmd)
+        self.check_output_on_target_cephadm_shell(instance_name, cmd)
 
         for attempt in range(0, check_count):
             status = json.loads(
-                self.check_output_on_target_cephadm_shell(vm_name, status_cmd)
+                self.check_output_on_target_cephadm_shell(
+                    instance_name, status_cmd
+                )
             )
             osd_count = status["osdmap"]["num_osds"]
             if osd_count >= expected_osd_num:
@@ -607,7 +619,9 @@ class DeployRunner:
             time.sleep(60)  # Wait for a minute
 
         status = json.loads(
-            self.check_output_on_target_cephadm_shell(vm_name, status_cmd)
+            self.check_output_on_target_cephadm_shell(
+                instance_name, status_cmd
+            )
         )
         osd_count = status["osdmap"]["num_osds"]
         if osd_count < expected_osd_num:
@@ -678,12 +692,12 @@ class DeployRunner:
                 )
                 instance_name = self.create_vm(is_container=is_container)
                 self.sync_repo_to_vm(instance_name)
+                self.install_apt_package(instance_name)
             else:
                 # None instance name results in direct host operations.
                 instance_name = None
+                self.install_apt_package(instance_name)
                 self.check_host_cephadm_already_deployed(instance_name)
-
-            self.install_apt_package(instance_name)
 
             # Use custom image if provided.
             if custom_image is not None:
@@ -715,7 +729,7 @@ def delete(args):
 
 def image(args):
     print("Executing Image: {}".format(args))
-    runner = DeployRunner()
+    runner = DeployRunner(is_direct_host=args.direct_host)
     runner.deploy_cephadm(
         custom_image=args.image_reference,
         expected_osd_num=args.osd_num,
@@ -727,7 +741,7 @@ def image(args):
 def build(args):
     print("Executing Build: {}".format(args))
     # Build with build arguments.
-    runner = DeployRunner()
+    runner = DeployRunner(is_direct_host=args.direct_host)
     runner.deploy_cephadm(
         build_arg=args.build_args,
         expected_osd_num=args.osd_num,

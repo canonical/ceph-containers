@@ -2,6 +2,8 @@
 
 set -xeEo pipefail
 
+PACKAGES="cephadm openssh-server jq"
+
 function prep_docker() {
     # Run a local registry.
     docker run -d -p 5000:5000 --name registry registry:2
@@ -15,6 +17,7 @@ function prep_docker() {
 function use_local_disk() {
     sudo lsblk -f
     datadisk=$( sudo lsblk --paths | awk '/14G/ {print $1}' | head -1 )
+    sudo apt purge snapd -y
     sudo dmsetup version || true
     sudo swapoff --all --verbose
     sudo umount /mnt
@@ -36,7 +39,7 @@ function configure_insecure_registry() {
 function install_apt() {
     # Install Apt packages.
     DEBIAN_FRONTEND=noninteractive sudo apt update
-    DEBIAN_FRONTEND=noninteractive sudo apt install -y cephadm openssh-server jq
+    DEBIAN_FRONTEND=noninteractive sudo apt install $PACKAGES -y 
 }
 
 function bootstrap() {
@@ -52,7 +55,7 @@ function get_ip() {
 
 function deploy_cephadm() {
     local image=${1:?missing}
-    install_pkg
+    install_apt
     bootstrap $image $( get_ip )
     test_num_objs mon 1
 }

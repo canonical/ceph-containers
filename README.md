@@ -73,19 +73,27 @@ We also provide a python3 script which can deploy a single node ceph cluster for
 ```$ sudo snap install lxd```
 
 ### Script Usage:
-1.) Use Script to deploy a new Cephadm host:
+1.) Use Script to setup a lxd Host and deploy Cephadm using a freshly built image:
 ```
-python3 test/deploy.py
+python3 test/deploy.py build
 ```
-2.) Use Script to clean a deployment:
+2.) Use Script to clean a deployment (using script generated model file):
 ```
-python3 test/deploy.py delete <model_file_path>
+python3 test/deploy.py delete model-88HJ.json
 ```
 3.) Use Script to deploy a custom image:
 e.g. <image_name>: ceph/ceph:latest
 ```
 python3 test/deploy.py image <image_name>
 ```
+
+**_NOTE:_**
+You can also use the script to deploy (experimentally) on a LXD container (rather than a VM) using '--container 1', this can be intersting when no KVM support is available on the machine. However, this is not recommended.
+For detailed info on script usage use:
+```
+python3 test/deploy.py --help
+```
+
 VM prepared by Script: 
 ```
 ubuntu@lxdhost:~$ lxc ls
