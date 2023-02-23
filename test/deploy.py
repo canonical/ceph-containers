@@ -588,7 +588,7 @@ class DeployRunner:
         image="localhost:5000/canonical/ceph:latest",
         check_count=10,
     ) -> None:
-        """Bootstrap Cephadm using cephadm-test script."""
+        """Bootstrap Cephadm."""
         self.exec_script_on_target(
             instance_name=instance_name,
             relative_script_path="test/scripts/cephadm_helper.sh",
@@ -598,7 +598,7 @@ class DeployRunner:
     def add_osds(
         self, instance_name: string, check_count=10, expected_osd_num=3
     ) -> None:
-        """Deploy OSD Daemon using cephadm-test script."""
+        """Deploy OSD Daemons on all available devices."""
         print("Adding OSDs, it may take a few minutes.")
         status_cmd = ["ceph", "status", "-f", "json"]
         cmd = ["ceph", "orch", "apply", "osd", "--all-available-devices"]
@@ -655,19 +655,13 @@ class DeployRunner:
         if ":5000" in custom_image:
             registry = custom_image.split(":")[0]
             if registry == "localhost":
-                # Don't need insecure registry entry for localhost.
+                # Docker doesn't need insecure registry entry for localhost.
                 return
-            try:
-                self.exec_script_on_target(
-                    instance_name,
-                    "test/scripts/cephadm_helper.sh",
-                    ["configure_insecure_registry", registry],
-                )
-            except subprocess.CalledProcessError as e:
-                print(
-                    "Failed to configure insecure registry"
-                    "Check if $USER is in 'docker' group: Error {}".format(e)
-                )
+            self.exec_script_on_target(
+                instance_name,
+                "test/scripts/cephadm_helper.sh",
+                ["configure_insecure_registry", registry],
+            )
 
     def deploy_cephadm(
         self,
