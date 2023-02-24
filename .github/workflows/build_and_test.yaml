@@ -148,7 +148,7 @@ jobs:
           sudo systemctl reload snap.lxd.daemon
           sleep 5
 
-      - name: Deploy Cephadm over Host
+      - name: Deploy Cephadm over LXD Container
         run: |
           reg_addr=$(./test/scripts/cephadm_helper.sh get_ip)
           sudo python test/deploy.py --osd-num 0 --container 1 image "$reg_addr:5000/canonical/ceph:latest"
