@@ -234,7 +234,7 @@ class DeployRunner:
             )
             self.model["profile"] = profile_name
 
-    def create_vm(
+    def create_instance(
         self,
         image="ubuntu/jammy",
         flavor="c4-m10",
@@ -309,10 +309,10 @@ class DeployRunner:
 
         return True  # It exists.
 
-    def check_call_on_vm(
+    def check_call_on_instance(
         self, instance_name: string, cmd: list, is_fail_print=True
     ) -> tuple:
-        """Execute Command on VM."""
+        """Execute Command on Instance."""
         if self.instance_exists(instance_name):
             inner_cmd = ["lxc", "exec", instance_name, "--", *cmd]
             try:
@@ -387,7 +387,7 @@ class DeployRunner:
         counter = 0
         while not is_container_ready:
             try:
-                self.check_call_on_vm(
+                self.check_call_on_instance(
                     instance_name, ["ls"], is_fail_print=False
                 )
                 is_container_ready = True
@@ -475,7 +475,7 @@ class DeployRunner:
             ]
             if op_print:
                 print("Executing on {}: CMD: {}".format(instance_name, cmd))
-            self.check_call_on_vm(instance_name, cmd)
+            self.check_call_on_instance(instance_name, cmd)
 
     def exec_host_script(
         self,
@@ -523,11 +523,12 @@ class DeployRunner:
 
     def grow_root_partition(self, instance_name: string) -> None:
         """Use Growpart utility to increase root partition size."""
-        self.check_call_on_vm(instance_name, ["growpart", "/dev/sda", "2"])
+        self.check_call_on_instance(instance_name,
+                                    ["growpart", "/dev/sda", "2"])
         time.sleep(5)  # Sleep for 5 sec.
-        self.check_call_on_vm(instance_name, ["resize2fs", "/dev/sda2"])
+        self.check_call_on_instance(instance_name, ["resize2fs", "/dev/sda2"])
 
-    def sync_repo_to_vm(
+    def sync_repo_to_instance(
         self,
         instance_name: string,
         src_path: string = None,
@@ -684,8 +685,8 @@ class DeployRunner:
                 self.create_instance_profile(
                     tuple(volumes), is_container=is_container
                 )
-                instance_name = self.create_vm(is_container=is_container)
-                self.sync_repo_to_vm(instance_name)
+                instance_name = self.create_instance(is_container=is_container)
+                self.sync_repo_to_instance(instance_name)
                 self.install_apt_package(instance_name)
             else:
                 # None instance name results in direct host operations.
