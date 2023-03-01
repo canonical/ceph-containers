@@ -1,0 +1,27 @@
+config:
+  security.privileged: "true"
+  security.nesting: "true"
+  linux.kernel_modules: bridge,br_netfilter,ip_tables,ip6_tables,ip_vs,netlink_diag,nf_nat,overlay,xt_conntrack,dm-thin-pool
+  raw.lxc: |-
+    lxc.apparmor.profile = unconfined
+    lxc.cgroup.devices.allow = a
+    lxc.cap.drop =
+  limits.memory: 4GB
+description: LXD profile for Cephadm based OCI image testing.
+devices:
+  root:
+    path: "/"
+    pool: default
+    size: 20GB
+    type: disk
+  loop-control:
+    type: unix-char
+    path: /dev/loop-control
+  mapper:
+    type: disk
+    source: /dev/mapper/control
+    path: /dev/mapper/control
+  eth0:
+    nictype: bridged
+    parent: lxdbr0
+    type: nic

@@ -37,45 +37,121 @@ jobs:
           name: myimage
           path: /tmp/myimage.tar
 
-  CephAdmTest:
+  CephAdmScriptTest:
     runs-on: ubuntu-latest
     needs: build
-
-    services:
-      registry:
-        image: registry:2
-        ports:
-          - 5000:5000
+    strategy:
+      matrix:
+        python-version: ["3.10"]
 
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v3
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+      - name: clean unrequired files.
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+
       - name: Download artifact
         uses: actions/download-artifact@v3
         with:
           name: myimage
           path: /tmp
-      - name: Load image and load to registry
+
+      - name: set up python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: install dependencies
         run: |
+          sudo python -m pip install --upgrade pip
+          sudo pip install flake8 pep8-naming pylxd pyyaml argparse
+
+      - name: Lint Check
+        run: |
+          flake8 . --count --show-source --statistics
+
+      - name: use local block device
+        run: ./test/scripts/cephadm_helper.sh use_local_disk
+
+      - name: Load image to registry
+        run: |
+          docker run -d -p 5000:5000 --name registry registry:2
           docker load --input /tmp/myimage.tar
           docker image ls -a
           docker image tag canonical/ceph:latest localhost:5000/canonical/ceph:latest
+          sleep 10
           docker push localhost:5000/canonical/ceph
           echo $'[registries.insecure]\nregistries = ["localhost:5000"]' | sudo tee -a /etc/containers/registries.conf
-      - name: prep local block device
-        run:  ./scripts/cephadm-test.sh use_local_disk
 
-      - name: deploy cluster with given image
-        run:  ./scripts/cephadm-test.sh deploy_cephadm `cat custom-image-spec`
+      - name: Deploy Cephadm over Host
+        run: |
+          sudo python test/deploy.py --osd-num 0 --direct-host 1 image "localhost:5000/canonical/ceph:latest"
 
-      - name: add osd
-        run:  ./scripts/cephadm-test.sh add_osds
+  CephAdmScriptLxdTest:
+    runs-on: ubuntu-latest
+    needs: build
+    strategy:
+      matrix:
+        python-version: ["3.10"]
 
-      - name: consider debugging
-        uses: lhotari/action-upterm@v1
-        if: failure()
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v3
+      - name: clean unrequired files.
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+
+      - name: Download artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: myimage
+          path: /tmp
+
+      - name: set up python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: install dependencies
+        run: |
+          sudo python -m pip install --upgrade pip
+          sudo pip install flake8 pep8-naming pylxd pyyaml argparse
+
+      - name: Lint Check
+        run: |
+          flake8 . --count --show-source --statistics
+
+      - name: Load image to registry
+        run: |
+          docker run -d -p 5000:5000 --name registry registry:2
+          docker load --input /tmp/myimage.tar
+          docker image ls -a
+          docker image tag canonical/ceph:latest localhost:5000/canonical/ceph:latest
+          sleep 10
+          docker push localhost:5000/canonical/ceph
+
+      - name: install and init lxd snap
+        run: |
+          sudo snap install lxd
+          sudo lxd init --auto
+
+      - name: clean iptables legacy
+        run: |
+          for ipt in iptables iptables-legacy ip6tables ip6tables-legacy; do sudo $ipt --flush; sudo $ipt --flush -t nat; sudo $ipt --delete-chain; sudo $ipt --delete-chain -t nat; sudo $ipt -P FORWARD ACCEPT; sudo $ipt -P INPUT ACCEPT; sudo $ipt -P OUTPUT ACCEPT; done
+          sudo systemctl reload snap.lxd.daemon
+          sleep 5
+
+      - name: Deploy Cephadm over LXD Container
+        run: |
+          reg_addr=$(./test/scripts/cephadm_helper.sh get_ip)
+          sudo python test/deploy.py --osd-num 0 --container 1 image "$reg_addr:5000/canonical/ceph:latest"
 
   RookTest:
     needs: build

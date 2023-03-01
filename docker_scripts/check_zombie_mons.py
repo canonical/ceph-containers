@@ -46,12 +46,17 @@ for mon in current_mons:
     removed_mon = False
     if mon not in expected_mons:
         print("removing zombie mon {}".format(mon))
-        subprocess.call(["ceph", "--cluster", os.environ["CLUSTER"], "mon", "remove", mon])
+        subprocess.call([
+            "ceph", "--cluster", os.environ["CLUSTER"], "mon", "remove", mon
+        ])
         removed_mon = True
     # check if for some reason the ip of the mon changed
     elif current_mons[mon] != expected_mons[mon]:
         print("ip change dedected for pod {}".format(mon))
-        subprocess.call(["kubectl", "--namespace", os.environ["CLUSTER"], "delete", "pod", mon])
+        subprocess.call([
+            "kubectl", "--namespace", os.environ["CLUSTER"],
+            "delete", "pod", mon
+        ])
         removed_mon = True
         print("deleted mon {} via the kubernetes api".format(mon))
 

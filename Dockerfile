@@ -35,7 +35,7 @@ ENV CEPH_DEVEL false
 ENV CEPH_REF quincy
 ENV OSD_FLAVOR default
 
-# Optional custom .deb repo
+# Additional custom .deb repo
 ARG CUSTOM_APT_REPO=""
 
 

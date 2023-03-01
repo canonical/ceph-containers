@@ -2,23 +2,17 @@
 
 set -xeEo pipefail
 
-PACKAGES="cephadm jq"
+PACKAGES="cephadm openssh-server jq"
 
-function install_pkg() {
-    sudo apt-get update
-    sudo apt-get install -y $PACKAGES
+function prep_docker() {
+    # Run a local registry.
+    docker run -d -p 5000:5000 --name registry registry:2
+    sleep 10
+    # Build Ubuntu Ceph container image.
+    docker build -t localhost:5000/canonical/ceph:latest $@
+    # Push to local registry.
+    docker push localhost:5000/canonical/ceph:latest
 }
-
-function bootstrap() {
-    local image="${1:missing}"
-    local ip="${2:?missing}"
-    sudo cephadm --image $image bootstrap --mon-ip $ip
-}
-
-function get_ip() {
-    ip -4 -j route | jq -r '.[] | select(.dst | contains("default")) | .prefsrc' | tr -d '[:space:]'
-}
-
 
 function use_local_disk() {
     sudo lsblk -f
@@ -36,23 +30,32 @@ function use_local_disk() {
     sudo lsblk -f
 }
 
+function configure_insecure_registry() {
+    echo '{"insecure-registries": []}' | sudo tee /etc/docker/daemon.json
+    jq --arg key "insecure-registries" --arg value "${1}:5000" '.[$key] += [$value]' /etc/docker/daemon.json > tmp.$$.json && sudo mv tmp.$$.json /etc/docker/daemon.json
+    sudo systemctl restart docker
+}
 
-function add_osds() {
-    sudo cephadm shell -- ceph orch apply osd --all-available-devices
-    # give osd some time to show up
-    for n in {0..15} ; do
-        sleep 2
-        num_osd=$( get_num_objs osd )
-        if [ $num_osd -eq 1 ] ; then
-            break
-        fi
-    done
-    test_num_objs osd 1
+function install_apt() {
+    # Install Apt packages.
+    DEBIAN_FRONTEND=noninteractive sudo apt update
+    DEBIAN_FRONTEND=noninteractive sudo apt install $PACKAGES -y 
+}
+
+function bootstrap() {
+    local image="${1:missing}"
+    local ip="${2:?missing}"
+    sudo cephadm --image $image bootstrap --mon-ip $ip --single-host-defaults
+    df -H
+}
+
+function get_ip() {
+    ip -4 -j route | jq -r '.[] | select(.dst | contains("default")) | .prefsrc' | tr -d '[:space:]'
 }
 
 function deploy_cephadm() {
     local image=${1:?missing}
-    install_pkg
+    install_apt
     bootstrap $image $( get_ip )
     test_num_objs mon 1
 }
@@ -77,10 +80,6 @@ function test_num_objs() {
     fi
 }
 
-
-
 FUNCTION="$1"
-shift # remove function arg now that we've recorded it
-# call the function with the remainder of the user-provided args
-# -e, -E, and -o=pipefail will ensure this script returns a failure if a part of the function fails
+shift
 $FUNCTION "$@"
