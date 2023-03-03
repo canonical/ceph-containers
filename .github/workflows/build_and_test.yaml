@@ -79,7 +79,7 @@ jobs:
 
       - name: Load image to registry
         run: |
-          docker run -d -p 5000:5000 --name registry registry:2
+          docker run -d -p 5000:5000 --restart=always --name registry registry:2
           docker load --input /tmp/myimage.tar
           docker image ls -a
           docker image tag canonical/ceph:latest localhost:5000/canonical/ceph:latest
@@ -130,7 +130,7 @@ jobs:
 
       - name: Load image to registry
         run: |
-          docker run -d -p 5000:5000 --name registry registry:2
+          docker run -d -p 5000:5000 --restart=always --name registry registry:2
           docker load --input /tmp/myimage.tar
           docker image ls -a
           docker image tag canonical/ceph:latest localhost:5000/canonical/ceph:latest
