@@ -28,6 +28,9 @@ A green light means that a particular feature is supported, and a red light mean
 | ISCSI | &#x1F7E2; | &#x1F534; |
 | RBD Mirror | &#x1F7E2; | &#x1F7E2; |
 
+## How to download pre-built images ?
+Visit our [Packages](https://github.com/canonical/ceph-containers/pkgs/container/ceph) page.
+
 ## How to build
 
 We provide a Dockerfile that can be used to build the image and the supporting scripts that go with it. Hence we can simply use Docker to build an image:
@@ -45,7 +48,7 @@ Successfully built 4edce85e2d97
 Successfully tagged canonical/ceph:latest
 ```
 
-**_NOTE:_**
+> **_NOTE:_**
 Due to a provisional fix additional build arguments are temporarily required to be provided for building the container image.
 ```
 $ sudo docker build -t canonical/ceph:latest --build-arg CUSTOM_APT_REPO=ppa:peter-sabaini/ceph-test .
@@ -68,9 +71,12 @@ This freshly baked Image can now be used for deploying Ceph using:
 
 ## Automated local deployments using cephadm and lxd
 
-We also provide a python3 script which can deploy a single node ceph cluster for you to tinker with using our image, cephadm and lxd. For this to work the host should have lxd snap installed.
+We also provide a python3 script which can deploy a single node ceph cluster for you to tinker with using our image, cephadm and lxd. For this to work the host should have lxd snap installed and initialised.
 
-```$ sudo snap install lxd```
+```
+$ sudo snap install lxd
+$ lxd init --auto
+```
 
 ### Script Usage:
 1.) Use Script to setup a lxd Host and deploy Cephadm using a freshly built image:
@@ -82,12 +88,17 @@ python3 test/deploy.py build
 python3 test/deploy.py delete model-88HJ.json
 ```
 3.) Use Script to deploy a custom image:
-e.g. <image_name>: ceph/ceph:latest
 ```
-python3 test/deploy.py image <image_name>
+python3 test/deploy.py image <qualified_image_name>
+```
+> **_NOTE:_**
+<qualified_image_name> can be a reference to a container image hosted on any public container registry.
+For Example:
+```
+$ python3 test/deploy.py image ghcr.io/canonical/ceph:main
 ```
 
-**_NOTE:_**
+> **_NOTE:_**
 You can also use the script to deploy (experimentally) on a LXD container (rather than a VM) using '--container 1', this can be intersting when no KVM support is available on the machine. However, this is not recommended.
 For detailed info on script usage use:
 ```
