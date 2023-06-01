@@ -1,0 +1,117 @@
+name: ceph
+base: ubuntu:22.04 # the base environment for this ROCK
+version: '0.1' # just for humans. Semantic versioning is recommended
+summary: Ubuntu based Ceph container image
+description: |
+    Rock for Containerised Ceph based on Ubuntu Ceph distribution. 
+license: MIT
+platforms:
+    amd64:
+
+# Custom PPAs for Bug: https://bugs.launchpad.net/ubuntu/jammy/+source/ceph/+bug/2003704
+# This will be removed once the required packages are available from jammy repositories.
+package-repositories:
+  - type: apt
+    ppa: utkarshbhatthere/ceph-oci
+    priority: always
+
+services:
+    ceph-container:
+        override: replace
+        command: /opt/ceph-container/bin/pebble/pebble_cmd.sh
+        summary: Unified Ceph container service started by the entrypoint
+        startup: enabled
+
+parts:
+    ceph:
+        plugin: nil
+        overlay-packages:
+            # Ceph packages
+            - ceph-common 
+            - ceph-mon 
+            - ceph-osd
+            - ceph-mds
+            - ceph-mgr
+            - ceph-mgr-cephadm
+            - ceph-mgr-dashboard
+            - ceph-mgr-diskprediction-local
+            - ceph-mgr-k8sevents
+            - ceph-mgr-rook
+            - ceph-grafana-dashboards
+            - radosgw
+            - nfs-ganesha
+            - nfs-ganesha-ceph
+            - cephfs-mirror
+            - ceph-iscsi
+            - ceph-fuse
+            - rbd-nbd
+            - rbd-mirror
+            # Utilities
+            - gnupg 
+            - curl 
+            - ca-certificates
+            - kmod
+            - lvm2
+            - gdisk
+            - smartmontools
+            - e2fsprogs
+            - nvme-cli
+            - attr # utilities for manipulating filesystem extended attributes
+            - targetcli-fb
+            - wget
+            - unzip
+            - uuid-runtime
+            - python-setuptools
+            - udev
+            - dmsetup
+            - ceph-volume
+            - python3-asyncssh
+            - python3-natsort
+            - sharutils
+            - lsof
+            - etcd-client
+            - s3cmd
+
+    # Confd is a configuration management system that can actively watch a consistent kv store like etcd and change config files based on templates.
+    confd:
+        plugin: dump
+        source: https://github.com/kelseyhightower/confd/releases/download/v0.16.0/confd-0.16.0-linux-amd64
+        source-type: file
+        override-build: |
+            mv confd-0.16.0-linux-amd64 /usr/local/bin/confd
+            chmod +x /usr/local/bin/confd
+            mkdir -p /etc/confd/conf.d
+            mkdir -p /etc/confd/templates
+
+    kubectl:
+        plugin: go
+        build-snaps:
+            - go
+        source: ./kubectl
+        source-type: local
+
+    local-files:
+        after:
+            - confd
+        plugin: dump
+        source: . # all local files
+        organize:
+            # Confd
+            confd/templates/* : ${CRAFT_PART_INSTALL}/etc/confd/templates/
+            confd/conf.d/*    : ${CRAFT_PART_INSTALL}/etc/confd/conf.d/
+            # Sree is a minimalistic pythonic browser based client for S3
+            docker_scripts/Sree-0.2.tar.gz: ${CRAFT_PART_INSTALL}/opt/ceph-container/tmp/sree.tar.gz
+            # Docker scripts
+            docker_scripts/*.sh : ${CRAFT_PART_INSTALL}/opt/ceph-container/bin/
+            docker_scripts/check_zombie_mons.py : ${CRAFT_PART_INSTALL}/opt/ceph-container/bin/
+            docker_scripts/osd_scenarios/* : ${CRAFT_PART_INSTALL}/opt/ceph-container/bin/
+            docker_scripts/entrypoint.sh.in : ${CRAFT_PART_INSTALL}/opt/ceph-container/bin/entrypoint.sh
+            docker_scripts/disabled_scenario : ${CRAFT_PART_INSTALL}/opt/ceph-container/bin/
+            # Logrotate (required by Rook prod spec)
+            logrotate.d/* : ${CRAFT_PART_INSTALL}/etc/logrotate.d/
+            # Ceph defaults
+            ceph.defaults : ${CRAFT_PART_INSTALL}/opt/ceph-container/etc/
+            # s3cfg
+            s3cfg : ${CRAFT_PART_INSTALL}/root/.s3cfg
+
+
