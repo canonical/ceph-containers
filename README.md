@@ -29,7 +29,8 @@ A green light means that a particular feature is supported, and a red light mean
 | RBD Mirror | &#x1F7E2; | &#x1F7E2; |
 
 ## How to download pre-built images ?
-Visit our [Packages](https://github.com/canonical/ceph-containers/pkgs/container/ceph) page.
+Visit our [Packages](https://github.com/canonical/ceph-containers/pkgs/container/ceph) page which includes instructions to install images, and also documents image versions and hashes.
+
 
 ## How to build
 
