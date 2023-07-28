@@ -194,7 +194,7 @@ jobs:
         run: ./scripts/deploy-helper.sh deploy_cluster
 
       - name: wait for prepare pod
-        run: cd rook ; tests/scripts/github-action-helper.sh wait_for_prepare_pod ; sleep 100
+        run: cd rook ; tests/scripts/github-action-helper.sh wait_for_prepare_pod ; sleep 200
 
       - name: wait for ceph to be ready
         run: cd rook ; tests/scripts/github-action-helper.sh wait_for_ceph_to_be_ready all 2
