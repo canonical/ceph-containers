@@ -29,40 +29,40 @@ A green light means that a particular feature is supported, and a red light mean
 | RBD Mirror | &#x1F7E2; | &#x1F7E2; |
 
 ## How to download pre-built images ?
-Visit our [Packages](https://github.com/canonical/ceph-containers/pkgs/container/ceph) page.
+Visit our [Packages](https://github.com/canonical/ceph-containers/pkgs/container/ceph) page which includes instructions to install images, and also documents image versions and hashes.
 
 ## How to build
 
-We provide a Dockerfile that can be used to build the image and the supporting scripts that go with it. Hence we can simply use Docker to build an image:
+We provide rockraft.yaml that can be used to build the image and the supporting scripts that go with it. Hence we can simply use rockcraft snap as follows:
 ```
-$ sudo docker build -t canonical/ceph:latest .
-Sending build context to Docker daemon  1.655MB
-Step 1/27 : FROM ubuntu:jammy
- ---> 6b7dfa7e8fdb
+$ sudo snap install rockcraft
+$ rockcraft -v
 ...
-...
- ---> Running in f431f665b976
-Removing intermediate container f431f665b976
- ---> 4edce85e2d97
-Successfully built 4edce85e2d97
-Successfully tagged canonical/ceph:latest
+Setting the ROCK's Control Data                                                
+Control data written                                                           
+Metadata added                                                                 
+Exporting to OCI archive                                                       
+Exported to OCI archive 'ceph_0.1_amd64.rock' 
 ```
 
-> **_NOTE:_**
-Due to a provisional fix additional build arguments are temporarily required to be provided for building the container image.
+The freshly built container archive can be loaded into docker for subsequent operations using [skopeo](https://github.com/containers/skopeo) as:
 ```
-$ sudo docker build -t canonical/ceph:latest --build-arg CUSTOM_APT_REPO=ppa:peter-sabaini/ceph-test .
-Sending build context to Docker daemon  1.655MB
-...
-Successfully tagged canonical/ceph:latest
+$ sudo /snap/rockcraft/current/bin/skopeo --insecure-policy copy oci-archive:ceph_0.1_amd64.rock docker-daemon:canonical/ceph:latest
+Getting image source signatures
+Copying blob 3153aa388d02 done  
+Copying blob e3162b5ec315 done  
+Copying blob 9131ac168a8b done  
+Copying blob 0e56abe5b4e6 done  
+Copying config 4d47f598e7 done  
+Writing manifest to image destination
+Storing signatures
 ```
 
 All images available locally can be checked through:
 ```
 $ sudo docker images
-REPOSITORY     TAG    IMAGE ID     CREATED            SIZE
-canonical/ceph latest 4edce85e2d97 About a minute ago 1.49GB
-ubuntu         jammy  6b7dfa7e8fdb 4 weeks ago        77.8MB
+REPOSITORY         TAG          IMAGE ID       CREATED       SIZE
+canonical/ceph     latest       4d47f598e7ef   4 hours ago   1.51GB
 ```
 
 This freshly baked Image can now be used for deploying Ceph using:
@@ -79,15 +79,7 @@ $ lxd init --auto
 ```
 
 ### Script Usage:
-1.) Use Script to setup a lxd Host and deploy Cephadm using a freshly built image:
-```
-python3 test/deploy.py build
-```
-2.) Use Script to clean a deployment (using script generated model file):
-```
-python3 test/deploy.py delete model-88HJ.json
-```
-3.) Use Script to deploy a custom image:
+1.) Use Script to deploy a custom image:
 ```
 python3 test/deploy.py image <qualified_image_name>
 ```
@@ -96,6 +88,10 @@ python3 test/deploy.py image <qualified_image_name>
 For Example:
 ```
 $ python3 test/deploy.py image ghcr.io/canonical/ceph:main
+```
+2.) Use Script to clean a deployment (using script generated model file):
+```
+python3 test/deploy.py delete model-88HJ.json
 ```
 
 > **_NOTE:_**
