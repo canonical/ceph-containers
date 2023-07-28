@@ -292,8 +292,6 @@ class DeployRunner:
                     wait=True
                 )
             self.wait_for_instance_ready(instance_name)
-            # Increase Root Partition size on VM.
-            self.grow_root_partition(instance_name)
 
         return instance_name  # instance_name for reference.
 

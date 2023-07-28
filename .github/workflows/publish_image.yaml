@@ -10,6 +10,8 @@ jobs:
   push_to_registry:
     name: Push Docker image to Docker Hub
     runs-on: ubuntu-latest
+    outputs:
+      rock: ${{ steps.rockcraft.outputs.rock }}
     steps:
       - name: Check out the repo
         uses: actions/checkout@v3
@@ -27,12 +29,14 @@ jobs:
         with:
           images: ghcr.io/canonical/ceph
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@ad44023a93711e3deb337508980b4b5e9bcdc5dc
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            "CUSTOM_APT_REPO=ppa:peter-sabaini/ceph-test"
+      - name: Prepare Rock
+        uses: canonical/craft-actions/rockcraft-pack@main
+        id: rockcraft
+
+      - name: Load to Docker daemon
+        run: |
+            skopeo --insecure-policy copy oci-archive:${{ steps.rockcraft.outputs.rock }} docker-daemon:${{ steps.meta.outputs.tags }}
+            docker image ls -a
+            sleep 10
+            docker push ${{ steps.meta.outputs.tags }}
+
