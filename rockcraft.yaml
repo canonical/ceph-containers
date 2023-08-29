@@ -4,7 +4,7 @@ version: '0.1' # just for humans. Semantic versioning is recommended
 summary: Ubuntu based Ceph container image
 description: |
     Rock for Containerised Ceph based on Ubuntu Ceph distribution. 
-license: MIT
+license: Apache-2.0
 platforms:
     amd64:
 
