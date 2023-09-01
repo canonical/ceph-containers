@@ -37,7 +37,7 @@ class Cleaner:
             self.client = pylxd.Client()
             self.clean(model_file_path)
         else:
-            print("Model File {} does not exists.".format(model_file_path))
+            print(f"Model File {model_file_path} does not exists.")
 
     def clean(self, model_file_path: string) -> None:
         """Clean LXC objects mentioned in the model file."""
@@ -47,7 +47,7 @@ class Cleaner:
         if "vm_name" in model:
             vm_name = model["vm_name"]
             if self.client.instances.exists(vm_name):
-                print("Deleting VM {}".format(vm_name))
+                print(f"Deleting VM {vm_name}")
                 vm = self.client.virtual_machines.get(vm_name)
                 vm.stop(wait=True)
                 vm.delete(wait=True)
@@ -55,7 +55,7 @@ class Cleaner:
         if "container_name" in model:
             container = model["container_name"]
             if self.client.instances.exists(container):
-                print("Deleting VM {}".format(container))
+                print(f"Deleting VM {container}")
                 cm = self.client.containers.get(container)
                 cm.stop(wait=True)
                 cm.delete(wait=True)
@@ -63,7 +63,7 @@ class Cleaner:
         if "profile" in model:
             profile_name = model["profile"]
             if self.client.profiles.exists(profile_name):
-                print("Deleting VM Profile {}".format(profile_name))
+                print(f"Deleting VM Profile {profile_name}")
                 self.client.profiles.get(profile_name).delete()
 
         if "storage_pool" in model:
@@ -76,14 +76,12 @@ class Cleaner:
                     for volume in volumes:
                         # Delete Volume.
                         print(
-                            "Deleting Volume {} from Pool {}".format(
-                                volume, pool_name
-                            )
+                            f"Deleting Volume {volume} from Pool {pool_name}"
                         )
                         pool.volumes.get("custom", volume).delete()
 
                 # Delete Storage pool
-                print("Deleting Pool {}".format(pool_name))
+                print(f"Deleting Pool {pool_name}")
                 pool.delete()
 
 
@@ -114,17 +112,13 @@ class DeployRunner:
             # Check if LXD is initialised.
             self.check_lxd_initialised()
         # File to store LXD virtual resource references.
-        self.model_file_path = "{}/model-{}.json".format(
-            os.getcwd(), self.model_id
-        )
+        self.model_file_path = f"{os.getcwd()}/model-{self.model_id}.json"
 
     def save_model_json(self):
         """Save lxd resource dictionary to json file."""
         with open(self.model_file_path, "w") as model_file:
             json.dump(self.model, model_file, indent=4)
-            print(
-                "Model information exported to {}".format(self.model_file_path)
-            )
+            print(f"Model information exported to {self.model_file_path}")
 
     def check_snaps_installed(self, required_snaps: tuple = None):
         """Check if snap dependencies are met."""
@@ -143,9 +137,7 @@ class DeployRunner:
         )
 
         if not all(snap in snaps for snap in check_snaps):
-            raise PreconditionError(
-                "Required snaps not installed: {}".format(snaps)
-            )
+            raise PreconditionError(f"Required snaps not installed: {snaps}")
 
     def check_user_in_group(self, group_name="lxd"):
         """Check if current user belongs to provided user group"""
@@ -158,17 +150,10 @@ class DeployRunner:
 
         if not (self.usr in output and group_name in output):
             raise PreconditionError(
-                "User {} is not in group {}."
-                "\nnewgrp {}"
-                "\nsudo usermod -aG {} {}"
-                "Output: {}".format(
-                    self.usr,
-                    group_name,
-                    group_name,
-                    self.usr,
-                    group_name,
-                    output,
-                )
+                f"User {self.usr} is not in group {group_name}."
+                "\nnewgrp {group_name}"
+                "\nsudo usermod -aG {self.usr} {group_name}"
+                "Output: {output}"
             )
 
     def check_lxd_initialised(self) -> None:
@@ -181,7 +166,7 @@ class DeployRunner:
         if not all(device in devices for device in default_devices):
             # if both default initialised network and root device do not exist.
             raise PreconditionError(
-                "LXD not initialised," "please use 'lxd init --auto'"
+                "LXD not initialised, please use 'lxd init --auto'"
             )
 
     def create_storage_pool(self, driver="dir", pool_name=deploy_tag) -> None:
@@ -191,7 +176,7 @@ class DeployRunner:
 
         if not self.client.storage_pools.exists(pool_name):
             config = {"name": pool_name, "driver": driver}
-            print("Creating Storage Pool {}".format(pool_name))
+            print(f"Creating Storage Pool {pool_name}")
             self.client.storage_pools.create(config)
         self.model["storage_pool"] = pool_name
 
@@ -228,7 +213,7 @@ class DeployRunner:
                     "type": "disk",
                 }
             # Create profile.
-            print("Creating VM Profile {}".format(profile_name))
+            print(f"Creating VM Profile {profile_name}")
             self.client.profiles.create(
                 profile_name, config["config"], config["devices"]
             )
@@ -278,13 +263,13 @@ class DeployRunner:
 
         # Create Instance
         if is_container:
-            print("Creating Container {}".format(instance_name))
+            print(f"Creating Container {instance_name}")
             self.client.containers.create(config, wait=True)
             self.model["container_name"] = instance_name
             if is_start:
                 self.client.containers.get(instance_name).start(wait=True)
         else:
-            print("Creating VM {}".format(instance_name))
+            print(f"Creating VM {instance_name}")
             self.client.virtual_machines.create(config, wait=True)
             self.model["vm_name"] = instance_name
             if is_start:
@@ -301,9 +286,7 @@ class DeployRunner:
             raise PreconditionError("LXD Client not available to runner.")
 
         if not self.client.instances.exists(instance_name):
-            raise PreconditionError(
-                "VM {} does not exist.".format(instance_name)
-            )
+            raise PreconditionError(f"VM {instance_name} does not exist.")
 
         return True  # It exists.
 
@@ -315,14 +298,10 @@ class DeployRunner:
             inner_cmd = ["lxc", "exec", instance_name, "--", *cmd]
             try:
                 subprocess.check_call(inner_cmd)
-            except subprocess.CalledProcessError as e:
+            except subprocess.CalledProcessError as exp:
                 if is_fail_print:
-                    print(
-                        "Failed Executing on {}: Output {}".format(
-                            instance_name, e
-                        )
-                    )
-                raise e
+                    print(f"Failed Executing on {instance_name}: Output {exp}")
+                raise exp
 
     def check_output_on_instance_cephadm_shell(
         self, instance_name: string, cmd: list, is_fail_print=True
@@ -340,14 +319,11 @@ class DeployRunner:
             ]
             try:
                 return subprocess.check_output(inner_cmd).decode("UTF-8")
-            except subprocess.CalledProcessError as e:
+            except subprocess.CalledProcessError as exp:
                 if is_fail_print:
-                    print(
-                        "Failed Cephadm Execution on {}: Output {}".format(
-                            instance_name, e
-                        )
-                    )
-                raise e
+                    print(f"Failed Cephadm Execution on {instance_name}:"
+                          " Output {exp}")
+                raise exp
 
     def check_output_on_host_cephadm_shell(
         self, cmd: list, is_fail_print=True
@@ -361,10 +337,10 @@ class DeployRunner:
         ]
         try:
             return subprocess.check_output(inner_cmd).decode("UTF-8")
-        except subprocess.CalledProcessError as e:
+        except subprocess.CalledProcessError as exp:
             if is_fail_print:
-                print("Failed Cephadm Execution on Host: Output {}".format(e))
-            raise e
+                print(f"Failed Cephadm Execution on Host: Output {exp}")
+            raise exp
 
     def check_output_on_target_cephadm_shell(
         self, instance_name: string = None, cmd=[]
@@ -389,11 +365,11 @@ class DeployRunner:
                     instance_name, ["ls"], is_fail_print=False
                 )
                 is_container_ready = True
-            except subprocess.CalledProcessError as e:
+            except subprocess.CalledProcessError as exp:
                 counter += 1
-                print("Attempt {}: VM not ready".format(counter))
+                print(f"Attempt {counter}: VM not ready")
                 if counter >= max_attempt:
-                    raise e
+                    raise exp
                 time.sleep(10)  # Sleep for 10 sec.
 
     def push_to_instance_recursively(
@@ -406,23 +382,19 @@ class DeployRunner:
                 "file",
                 "push",
                 src_path,
-                "{}{}".format(instance_name, target_path),
+                f"{instance_name}{target_path}",
                 "-r",
             ]
-            print("PUSHING FILES {}".format(cmd))
+            print(f"PUSHING FILES {cmd}")
             try:
                 subprocess.check_call(cmd)
-            except subprocess.CalledProcessError as e:
-                print(
-                    "Failed Pushing {} to {}: Output {}".format(
-                        src_path, instance_name, e
-                    )
-                )
-                raise e
+            except subprocess.CalledProcessError as exp:
+                print(f"Failed Pushing {src_path} to {instance_name}:"
+                      " Output {exp}")
+                raise exp
 
     def create_storage_volume(
         self,
-        size="10GB",
         count=3,
         pool_name=deploy_tag,
     ) -> list:
@@ -435,12 +407,12 @@ class DeployRunner:
 
         if not self.client.storage_pools.exists(pool_name):
             raise PreconditionError(
-                "Storage Pool {} does not exist.".format(pool_name)
+                f"Storage Pool {pool_name} does not exist."
             )
 
         storage_pool = self.client.storage_pools.get(pool_name)
         volumes = []
-        for iter in range(0, count):
+        for _ in range(0, count):
             vol_name = "vol-" + _get_random_string(4)
             config = {
                 "name": vol_name,
@@ -449,7 +421,7 @@ class DeployRunner:
             }
 
             # Creating Storage Volume.
-            print("Creating Storage Volume {}".format(vol_name))
+            print(f"Creating Storage Volume {vol_name}")
             storage_pool.volumes.create(config, wait=True)
             # Save volume name for returning
             volumes.append(vol_name)
@@ -472,7 +444,7 @@ class DeployRunner:
                 *params,
             ]
             if op_print:
-                print("Executing on {}: CMD: {}".format(instance_name, cmd))
+                print(f"Executing on {instance_name}: CMD: {cmd}")
             self.check_call_on_instance(instance_name, cmd)
 
     def exec_host_script(
@@ -489,17 +461,16 @@ class DeployRunner:
         ]
         try:
             if op_print:
-                print("Executing on Host: CMD {}".format(cmd))
+                print("Executing on Host: CMD {cmd}")
             subprocess.check_call(cmd)
-        except subprocess.CalledProcessError as e:
-            raise e
+        except subprocess.CalledProcessError as exp:
+            raise exp
 
     def exec_script_on_target(
         self,
         instance_name: string = None,
         relative_script_path="test/scripts/cephadm_helper.sh",
         params=[],
-        op_print=True,
     ) -> None:
         """Execute script on target (Host or LXD machine)"""
         if instance_name is None:
@@ -540,13 +511,11 @@ class DeployRunner:
         try:
             # Storing for later use.
             self.target_repo_path = target_path + src_path.split("/")[-1]
-        except KeyError as e:
+        except KeyError as exp:
             print(
-                "Unable to fetch repo directory from source path {}".format(
-                    src_path
-                )
+                f"Unable to fetch repo directory from source path {src_path}"
             )
-            raise e
+            raise exp
 
         # Push repository files to LXD VM.
         self.push_to_instance_recursively(
@@ -555,43 +524,16 @@ class DeployRunner:
             target_path=target_path,
         )
 
-    def prepare_container_image(
-        self,
-        instance_name: str,
-        build_arg: str = None,
-        relative_script_path="test/scripts/cephadm_helper.sh",
-    ) -> None:
-        """Run Helper scripts to make Container image available."""
-        # NOTE: The dockerfile is always expected to be at the root of repo.
-        if build_arg is not None:
-            self.exec_script_on_target(
-                instance_name,
-                relative_script_path,
-                [
-                    "prep_docker",
-                    "--build-arg",
-                    build_arg,
-                    self.target_repo_path,
-                ],
-            )
-        else:
-            self.exec_script_on_target(
-                instance_name,
-                relative_script_path,
-                ["prep_docker", self.target_repo_path],
-            )
-
     def bootstrap_cephadm(
         self,
         instance_name: string,
-        image="localhost:5000/canonical/ceph:latest",
-        check_count=10,
+        image_ref="localhost:5000/canonical/ceph:latest",
     ) -> None:
         """Bootstrap Cephadm."""
         self.exec_script_on_target(
             instance_name=instance_name,
             relative_script_path="test/scripts/cephadm_helper.sh",
-            params=["deploy_cephadm", image],
+            params=["deploy_cephadm", image_ref],
         )
 
     def add_osds(
@@ -613,7 +555,7 @@ class DeployRunner:
             if osd_count >= expected_osd_num:
                 break
             print(
-                "Attempt {}: OSD not up! Count {}".format(attempt, osd_count)
+                f"Attempt {attempt}: OSD not up! Count {osd_count}"
             )
             time.sleep(60)  # Wait for a minute
 
@@ -624,8 +566,8 @@ class DeployRunner:
         )
         osd_count = status["osdmap"]["num_osds"]
         if osd_count < expected_osd_num:
-            raise EnvironmentError("OSDs not up Count {}".format(osd_count))
-        print("OSD Count {}".format(osd_count))
+            raise EnvironmentError(f"OSDs not up, count: {osd_count}")
+        print(f"OSD count: {osd_count}")
 
     def check_host_cephadm_already_deployed(
         self,
@@ -639,9 +581,8 @@ class DeployRunner:
             )
             if len(result) > 0:
                 raise PreconditionError(
-                    "A Deployment is already present at host, fsid {}".format(
-                        result[0]["fsid"]
-                    )
+                    "A Deployment is already present at host, "
+                    f"fsid {result[0]['fsid']}"
                 )
 
     def configure_insecure_registry(
@@ -665,7 +606,6 @@ class DeployRunner:
     def deploy_cephadm(
         self,
         custom_image: str = None,
-        build_arg: str = None,
         expected_osd_num: int = 3,
         is_container: bool = False,
         is_direct_host: bool = False,
@@ -692,23 +632,20 @@ class DeployRunner:
                 self.install_apt_package(instance_name)
                 self.check_host_cephadm_already_deployed(instance_name)
 
-            # Use custom image if provided.
-            if custom_image is not None:
-                self.configure_insecure_registry(instance_name, custom_image)
-                self.bootstrap_cephadm(instance_name, image=custom_image)
-            # Build Container Image.
-            else:
-                self.prepare_container_image(
-                    instance_name, build_arg=build_arg
+            # Use provided custom image.
+            if custom_image is None:
+                raise AttributeError(
+                    "No Container image provided for deployment."
                 )
-                self.bootstrap_cephadm(instance_name)
 
+            self.configure_insecure_registry(instance_name, custom_image)
+            self.bootstrap_cephadm(instance_name, image_ref=custom_image)
             self.add_osds(instance_name, expected_osd_num=expected_osd_num)
             self.save_model_json()
-        except Exception as e:
-            print("Failed deploying Cephadm over LXD: Error {}".format(e))
+        except Exception as exp:
+            print(f"Failed deploying Cephadm over LXD: Error {exp}")
             self.save_model_json()  # Save partial info to file for cleanup.
-            raise e
+            raise exp
         except KeyboardInterrupt:
             print("User Interrupted the deployment process, Exiting.")
             self.save_model_json()
@@ -716,27 +653,17 @@ class DeployRunner:
 
 # Subcommand Callbacks
 def delete(args):
-    print("Executing Clean: {}".format(args))
+    '''Delete cephadm deployment env.'''
+    print(f"Executing Clean: {args}")
     Cleaner(args.model_file_path)
 
 
 def image(args):
-    print("Executing Image: {}".format(args))
+    '''Deploy provided image.'''
+    print(f"Executing Image: {args}")
     runner = DeployRunner(is_direct_host=args.direct_host)
     runner.deploy_cephadm(
         custom_image=args.image_reference,
-        expected_osd_num=args.osd_num,
-        is_container=args.container,
-        is_direct_host=args.direct_host,
-    )
-
-
-def build(args):
-    print("Executing Build: {}".format(args))
-    # Build with build arguments.
-    runner = DeployRunner(is_direct_host=args.direct_host)
-    runner.deploy_cephadm(
-        build_arg=args.build_args,
         expected_osd_num=args.osd_num,
         is_container=args.container,
         is_direct_host=args.direct_host,
@@ -773,6 +700,7 @@ if __name__ == "__main__":
     )
 
     sub_parsers = argparse.add_subparsers(title="commands", dest="cmd")
+    sub_parsers.required = True
 
     # Delete Subcommand
     del_parser = sub_parsers.add_parser(
@@ -791,15 +719,6 @@ if __name__ == "__main__":
         "image_reference", help="Fully Qualified image reference"
     )
     img_parser.set_defaults(func=image)
-
-    # Build Subcommand
-    build_parser = sub_parsers.add_parser(
-        "build", help="Build and deploy cephadm from repo."
-    )
-    build_parser.add_argument(
-        "--build-args", help="Provide optional build-args to Docker."
-    )
-    build_parser.set_defaults(func=build)
 
     # Parse the args.
     args = argparse.parse_args()
