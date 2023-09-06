@@ -48,8 +48,8 @@ jobs:
 
       - name: Load to Docker daemon
         run: |
-            skopeo --insecure-policy copy oci-archive:${{ steps.rockcraft.outputs.rock }} docker-daemon:${{ steps.meta.outputs.tags }}
+            skopeo --insecure-policy copy oci-archive:${{ steps.rockcraft.outputs.rock }} docker-daemon:ghcr.io/canonical/ceph:${{ github.event.issue.number }}
             docker image ls -a
             sleep 10
-            docker push ${{ steps.meta.outputs.tags }}
+            docker push ghcr.io/canonical/ceph:${{ github.event.issue.number }}
 
