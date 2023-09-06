@@ -18,14 +18,13 @@ jobs:
         env:
           NUMBER: ${{ github.event.issue.number }}
 
-      # Get branch from PR as issue_comment references the main branch by default.
-      - uses: xt0rted/pull-request-comment-branch@v2
-        id: comment-branch
+      - name: Checkout
+        uses: actions/checkout@v3
 
-      - uses: actions/checkout@v3
-        if: success()
-        with:
-          ref: ${{ steps.comment-branch.outputs.head_ref }}
+      - name: Checkout Pull Request
+        run: hub pr checkout ${{ github.event.issue.number }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: login to GitHub Container Registry
         uses: docker/login-action@v1
