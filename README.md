@@ -16,6 +16,7 @@ The Ceph ROCK available at the [GH Container Repository](https://github.com/cano
 
 We support 2 backends: Cephadm and Rook. The features each support differ, and this compatibility matrix aims to document what is achievable for both.
 
+
 > **_NOTE:_**
 A green light means that a particular feature is supported, and a red light means that it isn't. A yellow light means that a feature is _technically_ supported, but needs operator intervention.
 
