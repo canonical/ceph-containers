@@ -1,0 +1,21 @@
+name: Delete old container images
+
+on:
+  schedule:
+    - cron: "0 0 1 * *"  # every day at midnight
+
+
+jobs:
+  clean-ghcr:
+    name: GHCR cleanup
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Delete all Hotfixes older than 2 months.
+        uses: snok/container-retention-policy@v2
+        with:
+          image-names: hotfix-*
+          cut-off: Two months ago UTC
+          timestamp-to-use: updated_at
+          account-type: org
+          org-name: canonical
+          token: ${{ secrets.GITHUB_TOKEN }}

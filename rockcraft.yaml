@@ -1,9 +1,8 @@
 name: ceph
 base: ubuntu:22.04 # the base environment for this ROCK
-version: '0.1' # just for humans. Semantic versioning is recommended
+version: '0.1' # replaced by CI when building to publish.
 summary: Ubuntu based Ceph container image
-description: |
-    Rock for Containerised Ceph based on Ubuntu Ceph distribution. 
+description: ROCK for Containerised Ceph based on Ubuntu Ceph distribution. 
 license: Apache-2.0
 platforms:
     amd64:
@@ -23,6 +22,12 @@ services:
         startup: enabled
 
 parts:
+    # Workaround part which build nothing to fetch package info early in CI.
+    pkg_info:
+        plugin: nil
+        override-pull: |
+          apt info ceph-common
+
     ceph:
         plugin: nil
         overlay-packages:

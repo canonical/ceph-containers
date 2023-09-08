@@ -1,0 +1,76 @@
+name: Publish Temporary ROCK
+
+on:
+  pull_request:
+    types: [ labeled ]
+
+jobs:
+  hotfix_publish:
+    name: Publish hotfix release
+    # Run only if 'hotfix' label is attached.
+    if: ${{ github.event.label.name == 'hotfix' }}
+    runs-on: ubuntu-22.04
+    permissions:
+      packages: write
+    outputs:
+      rock: ${{ steps.rockcraft.outputs.rock }}
+    steps:
+      - run: |
+          echo Publishing container image for PR# $NUMBER
+        env:
+          NUMBER: ${{ github.event.pull_request.number }}
+
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Checkout Pull Request
+        run: hub pr checkout ${{ github.event.pull_request.number }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install deps and clean legacy rules.
+        run: |
+          sudo snap install lxd
+          sudo snap install rockcraft --classic --edge
+          sudo lxd init --auto
+          for ipt in iptables iptables-legacy ip6tables ip6tables-legacy; do sudo $ipt --flush; sudo $ipt --flush -t nat; sudo $ipt --delete-chain; sudo $ipt --delete-chain -t nat; sudo $ipt -P FORWARD ACCEPT; sudo $ipt -P INPUT ACCEPT; sudo $ipt -P OUTPUT ACCEPT; done
+          sudo systemctl reload snap.lxd.daemon
+          sleep 5
+
+      - name: Patch PR information into ROCK recipe
+        id: versioning
+        run: |
+            PKG_VER_STR=$(sudo rockcraft pull pkg_info -v &>  >(grep "Version"))
+            PKG_VER=$(cut -d' ' -f3 <<< $PKG_VER_STR)
+            CEPH_VER=$(cut -d'-' -f1 <<< $PKG_VER)
+            sed -i "/version:/c\version: $PR_NUM-$CEPH_VER" rockcraft.yaml
+            echo "::set-output name=ceph_version::$CEPH_VER"
+        env:
+          PR_NUM: ${{ github.event.pull_request.number }}
+
+      - name: login to GitHub Container Registry
+        uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+  
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@98669ae865ea3cffbcbaa878cf57c20bbf1c6c38
+        with:
+          images: ghcr.io/canonical/ceph
+          tags: |
+            type=raw,value=${{ github.event.pull_request.number }}-${{ steps.versioning.outputs.ceph_version }}
+  
+      - name: Prepare Rock
+        uses: canonical/craft-actions/rockcraft-pack@main
+        id: rockcraft
+
+      - name: Load to Docker daemon
+        run: |
+            skopeo --insecure-policy copy oci-archive:${{ steps.rockcraft.outputs.rock }} docker-daemon:${{ steps.meta.outputs.tags }}
+            docker image ls -a
+            sleep 10
+            docker push ${{ steps.meta.outputs.tags }}
+
