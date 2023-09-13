@@ -1,0 +1,84 @@
+name: Release Ceph ROCKs
+# Only runs when a commit on release branches is tagged with ceph version string.
+on:
+  push:
+    tags:
+      - v[1-9][0-9]\.[0-2]\.@([0-9]|[0-9][0-9])  # Version glob to match git tags with ceph versions
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  release_to_registry:
+    name: Release Ceph ROCK to GHCR
+    runs-on: ubuntu-22.04
+    permissions:
+      packages: write
+    outputs:
+      rock: ${{ steps.rockcraft.outputs.rock }}
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v3
+
+      - name: Get Branch
+        id: branch
+        run: |
+          raw=$(git branch -r --contains ${{ github.ref }})
+          branch=${raw/origin\/}
+          echo "::set-output name=name::$branch"
+
+      - name: Install deps and clean legacy rules.
+        run: |
+          sudo snap install lxd
+          sudo snap install rockcraft --classic --edge
+          sudo lxd init --auto
+          for ipt in iptables iptables-legacy ip6tables ip6tables-legacy; do sudo $ipt --flush; sudo $ipt --flush -t nat; sudo $ipt --delete-chain; sudo $ipt --delete-chain -t nat; sudo $ipt -P FORWARD ACCEPT; sudo $ipt -P INPUT ACCEPT; sudo $ipt -P OUTPUT ACCEPT; done
+          sudo systemctl reload snap.lxd.daemon
+          sleep 5
+
+      - name: Patch version information into ROCK recipe
+        id: versioning
+        run: |
+          PKG_VER_STR=$(sudo rockcraft pull pkg_info -v &>  >(grep "Version"))
+          PKG_VER=$(cut -d' ' -f3 <<< $PKG_VER_STR)
+          CEPH_VER=$(cut -d'-' -f1 <<< $PKG_VER)
+          DEB_VER=$(cut -d'-' -f2 <<< $PKG_VER)
+          sed -i "/version:/c\version: $CEPH_VER" rockcraft.yaml
+          echo "::set-output name=ceph_version::$CEPH_VER"
+          echo "::set-output name=deb_version::$DEB_VER"
+
+      - name: login to GitHub Container Registry
+        uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@98669ae865ea3cffbcbaa878cf57c20bbf1c6c38
+        with:
+          images: ghcr.io/canonical/ceph
+          tags: |
+            type=semver,pattern={{major}}.{{minor}}.{{patch}},value=${{ steps.versioning.outputs.ceph_version }}
+            type=raw,value=${{ steps.versioning.outputs.deb_version }}
+            type=raw,value=quincy,enable=${{ startsWith(steps.versioning.outputs.ceph_version, '17') }}
+            type=raw,value=reef,enable=${{ startsWith(steps.versioning.outputs.ceph_version, '18') }}
+            type=raw,value=dev,enable=${{ steps.branch.outputs.name == 'main' }}
+
+      - name: Prepare Rock
+        uses: canonical/craft-actions/rockcraft-pack@main
+        id: rockcraft
+
+      - name: Load to Docker daemon
+        run: |
+            echo $TAGS > tags.txt
+            # iterate through the tags
+            while read tag; do
+              echo "$tag"
+              skopeo --insecure-policy copy oci-archive:${{ steps.rockcraft.outputs.rock }} docker-daemon:$tag
+            done < tags.txt
+            docker image ls -a
+            sleep 10
+            docker push ghcr.io/canonical/ceph --all-tags
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
