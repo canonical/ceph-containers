@@ -1,4 +1,4 @@
-name: Release Ceph ROCKs
+name: Release Ceph ROCKs Edge
 # Runs whenever a new commit is pushed to below mentioned branches.
 on:
   push:
@@ -10,7 +10,7 @@ on:
 
 jobs:
   release_to_registry:
-    name: Release Ceph Edge ROCK to GHCR
+    name: Release Ceph ROCKs Edge to GHCR
     runs-on: ubuntu-22.04
     permissions:
       packages: write
@@ -53,7 +53,7 @@ jobs:
           tags: |
             type=edge,prefix=quincy-,enable=${{ startsWith(steps.versioning.outputs.ceph_version, '17') }}
             type=edge,prefix=reef-,enable=${{ startsWith(steps.versioning.outputs.ceph_version, '18') }}
-            type=edge,prefix=dev-,enable={{is_default_branch}}
+            type=edge,prefix=dev-,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
 
       - name: Prepare Rock
         uses: canonical/craft-actions/rockcraft-pack@main

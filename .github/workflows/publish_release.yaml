@@ -19,6 +19,13 @@ jobs:
       - name: Check out the repo
         uses: actions/checkout@v3
 
+      - name: Get Branch
+        id: branch
+        run: |
+          raw=$(git branch -r --contains ${{ github.ref }})
+          branch=${raw/origin\/}
+          echo "::set-output name=name::$branch"
+
       - name: Install deps and clean legacy rules.
         run: |
           sudo snap install lxd
@@ -53,10 +60,10 @@ jobs:
           images: ghcr.io/canonical/ceph
           tags: |
             type=semver,pattern={{major}}.{{minor}}.{{patch}},value=${{ steps.versioning.outputs.ceph_version }}
+            type=raw,value=${{ steps.versioning.outputs.deb_version }}
             type=raw,value=quincy,enable=${{ startsWith(steps.versioning.outputs.ceph_version, '17') }}
             type=raw,value=reef,enable=${{ startsWith(steps.versioning.outputs.ceph_version, '18') }}
-            type=raw,value=${{ steps.versioning.outputs.deb_version }}
-            type=raw,value=dev,enable={{is_default_branch}}
+            type=raw,value=dev,enable=${{ steps.branch.outputs.name == 'main' }}
 
       - name: Prepare Rock
         uses: canonical/craft-actions/rockcraft-pack@main
