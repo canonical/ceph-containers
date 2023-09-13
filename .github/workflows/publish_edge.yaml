@@ -61,12 +61,11 @@ jobs:
 
       - name: Load to Docker daemon
         run: |
-            echo $TAGS > tags.txt
             # iterate through the tags
-            while read tag; do
+            for tag in $TAGS; do
               echo "$tag"
               skopeo --insecure-policy copy oci-archive:${{ steps.rockcraft.outputs.rock }} docker-daemon:$tag
-            done < tags.txt
+            done
             docker image ls -a
             sleep 10
             docker push ghcr.io/canonical/ceph --all-tags
