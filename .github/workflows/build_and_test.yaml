@@ -1,9 +1,14 @@
 name: Canary image testing
 
 on:
+  # Run test on each "PUSH" to release branches only.
   push:
+    branches:
+      - 'main'
+      - 'stable/*'
+  # Run test on all PRs.
   pull_request:
-  # Allows you to run this workflow manually from the Actions tab
+  # Allows you to run this workflow manually for any internal branch from the Actions tab.
   workflow_dispatch:
 
 defaults:
