@@ -1,4 +1,5 @@
 # Ceph ROCKs
+DEMO
 Home to Ubuntu based Ceph [OCI](https://en.wikipedia.org/wiki/Open_Container_Initiative) Images.
 
 ## What on EARTH is a ROCK ?
