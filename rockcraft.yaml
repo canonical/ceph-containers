@@ -7,13 +7,6 @@ license: Apache-2.0
 platforms:
     amd64:
 
-# Custom PPAs for Bug: https://bugs.launchpad.net/ubuntu/jammy/+source/ceph/+bug/2003704
-# This will be removed once the required packages are available from jammy repositories.
-package-repositories:
-  - type: apt
-    ppa: utkarshbhatthere/ceph-oci
-    priority: always
-
 services:
     ceph-container:
         override: replace
