@@ -1,33 +1,58 @@
 # Ceph ROCKs
-Home to Ubuntu based Ceph [OCI](https://en.wikipedia.org/wiki/Open_Container_Initiative) Images.
 
-## What on EARTH is a ROCK ?
-[ROCKs](https://canonical-rockcraft.readthedocs-hosted.com/en/latest/explanation/rocks/#rocks-explanation) are a new generation of secure, stable and OCI-compliant container images, based on Ubuntu LTS releases. They are interoperable with all OCI compliant tools. For enthusiasts, we recommend checking out our [Hacking Guide](HACKING.md)
+Home to Ubuntu based Ceph [OCI][wikipedia-oci] images.
 
-## How to download a pre-built image?
-Visit our [Packages](https://github.com/canonical/ceph-containers/pkgs/container/ceph) page which includes instructions to install images, and also documents image versions and hashes.
+## What is a ROCK ?
+
+[ROCKs][definition-rocks] are a new generation of secure, stable, and
+OCI-compliant container images, based on Ubuntu LTS releases. They are
+interoperable with all OCI compliant tools. For enthusiasts, we recommend
+checking out our [Hacking Guide](HACKING.md).
 
 ## Using Ceph ROCKs
-The Ceph ROCK available at the [GH Container Repository](https://github.com/canonical/ceph-containers/pkgs/container/ceph) can be used with popular containerised-ceph deployment tools like:
-1. [Cephadm](https://discourse.ubuntu.com/t/using-cephadm-to-deploy-custom-ubuntu-ceph-images-in-a-containerised-manner/)
-2. [Rook](https://discourse.ubuntu.com/t/deploying-ceph-with-rook/)
 
-## What features are supported ?
+Ceph ROCKs are available via our [GitHub Packages Container
+registry][github-ceph-containers-registry]. They are compatible with popular
+containerised Ceph deployment tools such as:
 
-We support 2 backends: Cephadm and Rook. The features each support differ, and this compatibility matrix aims to document what is achievable for both.
+* [Cephadm][ubuntu-discourse-cephadm]
+* [Rook][ubuntu-discourse-ceph-rook]
 
-> **_NOTE:_**
-A green light means that a particular feature is supported, and a red light means that it isn't. A yellow light means that a feature is _technically_ supported, but needs operator intervention.
+## Supported features
 
-| Feature | Cephadm | Rook | Feature | Cephadm | Rook |
-| ------- | ------- | ---- | ------- | ------- | ---- |
-| Upgrade | &#x1F7E2; | &#x1F7E1; | Dashboard | &#x1F7E2; | &#x1F7E2; |
-| Status | &#x1F7E2; | &#x1F7E2; | Loki | &#x1F7E2; | &#x1F534; |
-| ps | &#x1F7E2; | &#x1F7E2; | Prometheus | &#x1F7E2; | &#x1F534; |
-| ls | &#x1F7E2; | &#x1F7E2; | Alert manager | &#x1F7E2; | &#x1F534; |
-| RadosGW | &#x1F7E2; | &#x1F7E1; | Node exporter | &#x1F7E2; | &#x1F534; |
-| Hosts | &#x1F7E2; | &#x1F7E2; | OSD ops | &#x1F7E2; | &#x1F7E2; |
-| Hosts (maintenance) | &#x1F7E2; | &#x1F534; | ISCSI | &#x1F7E2; | &#x1F534; |
-| Device ops | &#x1F7E2; | &#x1F7E2; | RBD Mirror | &#x1F7E2; | &#x1F7E2; |
-| Status | &#x1F7E2; | &#x1F7E1; | | | |
+Our ROCKs support two backends: Cephadm and Rook. The features that each
+support are given below.
 
+| Feature | Cephadm | Rook |
+| ------- | ------- | ---- |
+| Status | &#x1F7E2; | &#x1F7E2; |
+| ps | &#x1F7E2; | &#x1F7E2; |
+| ls | &#x1F7E2; | &#x1F7E2; |
+| Hosts | &#x1F7E2; | &#x1F7E2; |
+| Device ops | &#x1F7E2; | &#x1F7E2; |
+| Dashboard | &#x1F7E2; | &#x1F7E2; |
+| OSD ops | &#x1F7E2; | &#x1F7E2; |
+| RBD Mirror | &#x1F7E2; | &#x1F7E2; |
+| RadosGW | &#x1F7E2; | &#x1F7E1; |
+| Status | &#x1F7E2; | &#x1F7E1; |
+| Upgrade | &#x1F7E2; | &#x1F7E1; |
+| Hosts (maintenance) | &#x1F7E2; | &#x1F534; |
+| ISCSI | &#x1F7E2; | &#x1F534; |
+| Loki | &#x1F7E2; | &#x1F534; |
+| Prometheus | &#x1F7E2; | &#x1F534; |
+| Alert manager | &#x1F7E2; | &#x1F534; |
+| Node exporter | &#x1F7E2; | &#x1F534; |
+
+**Legend**
+
+&#x1F7E2; : fully supported  
+&#x1F7E1; : _technically_ supported - requires operator intervention  
+&#x1F534; : not supported
+
+<!-- LINKS -->
+
+[wikipedia-oci]: https://en.wikipedia.org/wiki/Open_Container_Initiative
+[definition-rocks]: https://canonical-rockcraft.readthedocs-hosted.com/en/latest/explanation/rocks/#rocks-explanation
+[github-ceph-containers-registry]: https://github.com/canonical/ceph-containers/pkgs/container/ceph
+[ubuntu-discourse-cephadm]: https://discourse.ubuntu.com/t/using-cephadm-to-deploy-custom-ubuntu-ceph-images-in-a-containerised-manner
+[ubuntu-discourse-ceph-rook]: https://discourse.ubuntu.com/t/deploying-ceph-with-rook
