@@ -131,7 +131,7 @@ canonical/ceph     latest       4d47f598e7ef   4 hours ago   1.51GB
 ## Automated local deployments using cephadm and LXD
 
 We also provide a [python3 script](test/deploy.py) which can deploy a single
-node ceph cluster for you to tinker with using our image, cephadm and lxd. For
+node Ceph cluster for you to tinker with using our image, cephadm, and LXD. For
 this to work the host should have lxd snap installed and initialised.
 
 ```
@@ -163,8 +163,8 @@ python3 test/deploy.py delete model-88HJ.json
 
 > **Note:**
 You can also use the script to deploy (experimentally) on a LXD container
-(rather than a VM) using '--container 1', this can be interesting when no KVM
-support is available on the machine. However, this is not recommended. For
+(rather than a VM) using `--container 1`. This can be interesting when KVM
+support is note available on the machine. However, this is not recommended. For
 detailed info on script usage use:
 
 ```
