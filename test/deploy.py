@@ -10,6 +10,11 @@ import random
 import argparse
 import subprocess
 
+# Helper Translation Tables
+ceph_version_to_cloud_archive = {
+    'reef': 'bobcat'
+}
+
 
 # Helper Functions.
 def _get_random_string(length: int) -> string:
@@ -480,6 +485,27 @@ class DeployRunner:
                 instance_name, relative_script_path, params
             )
 
+    def set_cloud_archive(
+        self,
+        ceph_version: string,
+        instance_name: string,
+        relative_script_path="test/scripts/cephadm_helper.sh",
+    ) -> None:
+        """Add cloud archive repository based on ceph release."""
+        if ceph_version_to_cloud_archive.get(ceph_version) is None:
+            raise PreconditionError(
+                    f"Provided Ceph version {ceph_version}, is not supported."
+                )
+
+        self.exec_script_on_target(
+            instance_name,
+            relative_script_path,
+            params=[
+                "set_cloud_archive",
+                ceph_version_to_cloud_archive.get(ceph_version)
+            ]
+        )
+
     def install_apt_package(
         self,
         instance_name: string,
@@ -609,6 +635,7 @@ class DeployRunner:
         expected_osd_num: int = 3,
         is_container: bool = False,
         is_direct_host: bool = False,
+        ceph_version: string = 'quincy',
     ) -> None:
         """Deploy cephadm over LXD host."""
         try:
@@ -625,10 +652,18 @@ class DeployRunner:
                 )
                 instance_name = self.create_instance(is_container=is_container)
                 self.sync_repo_to_instance(instance_name)
+                if ceph_version != 'quincy':
+                    self.set_cloud_archive(
+                        ceph_version=ceph_version, instance_name=instance_name
+                    )
                 self.install_apt_package(instance_name)
             else:
                 # None instance name results in direct host operations.
                 instance_name = None
+                if ceph_version != 'quincy':
+                    self.set_cloud_archive(
+                        ceph_version=ceph_version, instance_name=instance_name
+                    )
                 self.install_apt_package(instance_name)
                 self.check_host_cephadm_already_deployed(instance_name)
 
@@ -667,6 +702,7 @@ def image(args):
         expected_osd_num=args.osd_num,
         is_container=args.container,
         is_direct_host=args.direct_host,
+        ceph_version=args.ceph_version,
     )
 
 
@@ -697,6 +733,12 @@ if __name__ == "__main__":
         default=False,
         nargs="?",
         help="Perform chosen deployment directly over host.",
+    )
+    argparse.add_argument(
+        "--ceph-version",
+        type=str,
+        default='quincy',
+        help="Ceph Version for the provided container image.",
     )
 
     sub_parsers = argparse.add_subparsers(title="commands", dest="cmd")
