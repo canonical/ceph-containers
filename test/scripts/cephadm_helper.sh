@@ -16,7 +16,7 @@ function prep_docker() {
 
 function use_local_disk() {
     sudo lsblk -f
-    datadisk=$( sudo lsblk --paths | awk '/14G/ {print $1}' | head -1 )
+    datadisk=$(sudo lsblk --paths | awk '/14G/ || /64G/ {print $1}' | head -1)
     sudo apt purge snapd -y
     sudo dmsetup version || true
     sudo swapoff --all --verbose
@@ -34,6 +34,12 @@ function configure_insecure_registry() {
     echo '{"insecure-registries": []}' | sudo tee /etc/docker/daemon.json
     jq --arg key "insecure-registries" --arg value "${1}:5000" '.[$key] += [$value]' /etc/docker/daemon.json > tmp.$$.json && sudo mv tmp.$$.json /etc/docker/daemon.json
     sudo systemctl restart docker
+}
+
+function set_cloud_archive() {
+    # Set provided cloud archive
+    DEBIAN_FRONTEND=noninteractive sudo apt install software-properties-common -y
+    DEBIAN_FRONTEND=noninteractive sudo add-apt-repository cloud-archive:$1 -y
 }
 
 function install_apt() {
