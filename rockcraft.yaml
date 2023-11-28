@@ -11,7 +11,7 @@ platforms:
 # This will be removed once the required packages are available from jammy repositories.
 package-repositories:
   - type: apt
-    ppa: utkarshbhatthere/ceph-oci
+    cloud: bobcat
     priority: always
 
 services:
