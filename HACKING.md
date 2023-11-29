@@ -164,7 +164,7 @@ python3 test/deploy.py delete model-88HJ.json
 > **Note:**
 You can also use the script to deploy (experimentally) on a LXD container
 (rather than a VM) using `--container 1`. This can be interesting when KVM
-support is note available on the machine. However, this is not recommended. For
+support is not available on the machine. However, this is not recommended. For
 detailed info on script usage use:
 
 ```

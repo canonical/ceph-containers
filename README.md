@@ -34,7 +34,7 @@ support are given below.
 | OSD ops | &#x1F7E2; | &#x1F7E2; |
 | RBD Mirror | &#x1F7E2; | &#x1F7E2; |
 | RadosGW | &#x1F7E2; | &#x1F7E1; |
-| Status | &#x1F7E2; | &#x1F7E1; |
+| Daemon status | &#x1F7E2; | &#x1F7E1; |
 | Upgrade | &#x1F7E2; | &#x1F7E1; |
 | Hosts (maintenance) | &#x1F7E2; | &#x1F534; |
 | ISCSI | &#x1F7E2; | &#x1F534; |
