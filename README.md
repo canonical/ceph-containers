@@ -54,5 +54,5 @@ support are given below.
 [wikipedia-oci]: https://en.wikipedia.org/wiki/Open_Container_Initiative
 [definition-rocks]: https://canonical-rockcraft.readthedocs-hosted.com/en/latest/explanation/rocks/#rocks-explanation
 [github-ceph-containers-registry]: https://github.com/canonical/ceph-containers/pkgs/container/ceph
-[ubuntu-discourse-cephadm]: https://discourse.ubuntu.com/t/using-cephadm-to-deploy-custom-ubuntu-ceph-images-in-a-containerised-manner
-[ubuntu-discourse-ceph-rook]: https://discourse.ubuntu.com/t/deploying-ceph-with-rook
+[ubuntu-discourse-cephadm]: https://discourse.ubuntu.com/t/32408
+[ubuntu-discourse-ceph-rook]: https://discourse.ubuntu.com/t/32565
