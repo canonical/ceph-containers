@@ -14,12 +14,13 @@ jobs:
         uses: snok/container-retention-policy@v2
         with:
           image-names: hotfix-*
-          cut-off: one day ago UTC
+          cut-off: one month ago UTC
           timestamp-to-use: updated_at
           untagged-only: true
           account-type: org
           org-name: canonical
           token: ${{ secrets.GITHUB_TOKEN }}
+          token-type: github-token
 
       - name: Delete all tagged Hotfixes older than 6 months.
         uses: snok/container-retention-policy@v2
@@ -30,3 +31,4 @@ jobs:
           account-type: org
           org-name: canonical
           token: ${{ secrets.GITHUB_TOKEN }}
+          token-type: github-token
