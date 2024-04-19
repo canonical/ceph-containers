@@ -50,7 +50,7 @@ jobs:
             PKG_VER=$(cut -d' ' -f3 <<< $PKG_VER_STR)
             CEPH_VER=$(cut -d'-' -f1 <<< $PKG_VER)
             sed -i "/version:/c\version: $PR_NUM-$CEPH_VER" rockcraft.yaml
-            echo "{ceph_version}={$CEPH_VER}" >> $GITHUB_OUTPUT
+            echo "::set-output name=ceph_version::$CEPH_VER"
         env:
           PR_NUM: ${{ github.event.pull_request.number }}
 
