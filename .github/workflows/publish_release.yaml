@@ -38,8 +38,8 @@ jobs:
           PKG_VER=$(cut -d' ' -f3 <<< $PKG_VER_STR)
           CEPH_VER=$(cut -d'-' -f1 <<< $PKG_VER)
           sed -i "/version:/c\version: $CEPH_VER" rockcraft.yaml
-          echo "::set-output name=ceph_version::$CEPH_VER"
-          echo "::set-output name=pkg_version::$PKG_VER"
+          echo "{ceph_version}={$CEPH_VER}" >> $GITHUB_OUTPUT
+          echo "{pkg_version}={$PKG_VER}" >> $GITHUB_OUTPUT
 
       - name: login to GitHub Container Registry
         uses: docker/login-action@v1
