@@ -35,7 +35,7 @@ jobs:
         id: versioning
         run: |
           PKG_VER_STR=$(sudo rockcraft pull pkg_info -v &>  >(grep "Version"))
-          PKG_VER=$(cut -d' ' -f3 <<< $PKG_VER_STR)
+          PKG_VER=$(cut -d' ' -f3 <<< $PKG_VER_STR | tr "~" "_")
           CEPH_VER=$(cut -d'-' -f1 <<< $PKG_VER)
           sed -i "/version:/c\version: $CEPH_VER" rockcraft.yaml
           echo "::set-output name=ceph_version::$CEPH_VER"
