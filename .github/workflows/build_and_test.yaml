@@ -86,7 +86,7 @@ jobs:
 
       - name: Deploy Cephadm over Host
         run: |
-          sudo python test/deploy.py --osd-num 1 --direct-host 1 --ceph-version reef image "localhost:5000/canonical/ceph:latest"
+          sudo python test/deploy.py --osd-num 1 --direct-host 1 --ceph-version squid image "localhost:5000/canonical/ceph:latest"
 
   CephAdmScriptLxdTest:
     runs-on: ubuntu-latest
@@ -114,6 +114,12 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
+
+      - name: Setup LXD
+        uses: canonical/setup-lxd@v0.1.1
+        with:
+          # pin lxd to LTS release.
+          channel: 5.21/stable
 
       - name: install dependencies
         run: |
@@ -150,7 +156,7 @@ jobs:
       - name: Deploy Cephadm over LXD Container
         run: |
           reg_addr=$(./test/scripts/cephadm_helper.sh get_ip)
-          sudo python test/deploy.py --osd-num 0 --container 1  --ceph-version reef image "$reg_addr:5000/canonical/ceph:latest"
+          sudo python test/deploy.py --osd-num 0 --container 1  --ceph-version squid image "$reg_addr:5000/canonical/ceph:latest"
 
   RookTest:
     needs: build-rock

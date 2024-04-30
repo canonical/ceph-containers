@@ -16,7 +16,7 @@ function prep_docker() {
 
 function use_local_disk() {
     sudo lsblk -f
-    datadisk=$(sudo lsblk --paths | awk '/14G/ || /64G/ {print $1}' | head -1)
+    datadisk=$(sudo lsblk --paths | awk '/14G/ || /65.5G/ {print $1}' | head -1)
     sudo apt purge snapd -y
     sudo dmsetup version || true
     sudo swapoff --all --verbose
