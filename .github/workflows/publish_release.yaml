@@ -1,4 +1,4 @@
-name: Release Ceph ROCKs
+name: Release Ceph Rocks
 # Only runs when a commit on release branches is tagged with ceph version string.
 on:
   push:
@@ -9,7 +9,7 @@ on:
 
 jobs:
   release_to_registry:
-    name: Release Ceph ROCK to GHCR
+    name: Release Ceph rock to GHCR
     runs-on: ubuntu-22.04
     permissions:
       packages: write
@@ -31,7 +31,7 @@ jobs:
           sudo systemctl reload snap.lxd.daemon
           sleep 5
 
-      - name: Patch version information into ROCK recipe
+      - name: Patch version information into rock recipe
         id: versioning
         run: |
           PKG_VER_STR=$(sudo rockcraft pull pkg_info -v &>  >(grep "Version"))
