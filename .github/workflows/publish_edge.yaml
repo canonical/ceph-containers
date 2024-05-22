@@ -1,4 +1,4 @@
-name: Release Ceph ROCKs Edge
+name: Release Ceph Rocks Edge
 # Runs whenever a new commit is pushed to below mentioned branches.
 on:
   push:
@@ -10,7 +10,7 @@ on:
 
 jobs:
   release_to_registry:
-    name: Release Ceph ROCKs Edge to GHCR
+    name: Release Ceph Rocks Edge to GHCR
     runs-on: ubuntu-22.04
     permissions:
       packages: write
@@ -32,7 +32,7 @@ jobs:
           sudo systemctl reload snap.lxd.daemon
           sleep 5
 
-      - name: Patch version information into ROCK recipe
+      - name: Patch version information into rock recipe
         id: versioning
         run: |
           PKG_VER_STR=$(sudo rockcraft pull pkg_info -v &>  >(grep "Version"))
