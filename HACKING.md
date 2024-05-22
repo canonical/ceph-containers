@@ -1,26 +1,30 @@
-# Ceph ROCK Hacking Guide
+# Ceph Rock Hacking Guide
 
 The aim of this document is to familiarise developers with the build tools and
-Ceph ROCK registry so that they can contribute to
+Ceph Rock registry so that they can contribute to
 [Ceph-Containers](https://github.com/canonical/ceph-containers).
 
 ## Table of Contents
 
-1. [Introduction to ROCKs](#introduction-to-rocks)
-2. [Tools](#tools)
-3. [References](#references)
-4. [Build guide](#build-guide)
-6. [Using Ceph ROCKs](#using-ceph-rocks)
+- [Ceph Rock Hacking Guide](#ceph-rock-hacking-guide)
+  - [Table of Contents](#table-of-contents)
+  - [Introduction to Rocks](#introduction-to-rocks)
+  - [Tools](#tools)
+  - [References](#references)
+    - [Parts](#parts)
+  - [Build guide](#build-guide)
+  - [Automated local deployments using cephadm and LXD](#automated-local-deployments-using-cephadm-and-lxd)
+    - [Script usage:](#script-usage)
 
-## Introduction to ROCKs
+## Introduction to Rocks
 
 A
-[ROCK](https://canonical-rockcraft.readthedocs-hosted.com/en/latest/explanation/rocks/)
+[rock](https://canonical-rockcraft.readthedocs-hosted.com/en/latest/explanation/rocks/)
 is an [OCI](https://en.wikipedia.org/wiki/Open_Container_Initiative) compliant
-container archive built on top of an Ubuntu LTS release. ROCKs are interoperable
+container archive built on top of an Ubuntu LTS release. Rocks are interoperable
 with all OCI-compliant tools and platforms.
 
-A Ceph ROCK contains:
+A Ceph rock contains:
 
 * required Ceph binaries
 * [kubectl](https://kubernetes.io/docs/reference/kubectl/) and [confd](https://github.com/kelseyhightower/confd) utilities
@@ -28,10 +32,10 @@ A Ceph ROCK contains:
 
 ## Tools
 
-ROCKs are built using [Rockcraft](https://github.com/canonical/rockcraft). It
+Rocks are built using [Rockcraft](https://github.com/canonical/rockcraft). It
 uses [LXD](https://github.com/canonical/lxd) to pull dependencies and build an
 artefact completely isolated from the host system. This makes it easier for
-developers to work on ROCKs without polluting their host system with unwanted
+developers to work on rocks without polluting their host system with unwanted
 dependencies.
 
 You can install Rockcraft and LXD in this way:
@@ -50,7 +54,7 @@ for in-depth guidance on using the `rockcraft` tool.
 
 The `rockcraft` tool uses a declarative file called `rockcraft.yaml` as the
 blueprint to prepare the artefact. Below is a brief description of all the
-`parts` that make up the Ceph ROCK.
+`parts` that make up the Ceph rock.
 
 ### Parts
 
@@ -79,9 +83,9 @@ blueprint to prepare the artefact. Below is a brief description of all the
 
 5. **[ceph-container-service](rockcraft.yaml#L19)**
 
-    ROCKs use [Pebble](https://github.com/canonical/pebble) as the official
+    Rocks use [Pebble](https://github.com/canonical/pebble) as the official
     entrypoint of the OCI artefact. `ceph-container-service` is the Pebble
-    definition of the entrypoint to the ROCK. However, orchestration tools like
+    definition of the entrypoint to the rock. However, orchestration tools like
     [Rook](https://rook.io/) and
     [Cephadm](https://docs.ceph.com/en/latest/cephadm/) do not rely on the
     configured entrypoint and override it when spawning containers. Hence, the
@@ -90,7 +94,7 @@ blueprint to prepare the artefact. Below is a brief description of all the
 
 ## Build guide
 
-Here is a summary of how to build a Ceph ROCK:
+Here is a summary of how to build a Ceph rock:
 
 ``` text
 rockcraft -v

@@ -1,17 +1,17 @@
-# Ceph ROCKs
+# Ceph rocks
 
 Home to Ubuntu based Ceph [OCI][wikipedia-oci] images.
 
-## What is a ROCK ?
+## What is a rock?
 
-[ROCKs][definition-rocks] are a new generation of secure, stable, and
+[Rocks][definition-rocks] are a new generation of secure, stable, and
 OCI-compliant container images, based on Ubuntu LTS releases. They are
 interoperable with all OCI compliant tools. For enthusiasts, we recommend
 checking out our [Hacking Guide](HACKING.md).
 
-## Using Ceph ROCKs
+## Using Ceph rocks
 
-Ceph ROCKs are available via our [GitHub Packages Container
+Ceph rocks are available via our [GitHub Packages Container
 registry][github-ceph-containers-registry]. They are compatible with popular
 containerised Ceph deployment tools such as:
 
@@ -20,7 +20,7 @@ containerised Ceph deployment tools such as:
 
 ## Supported features
 
-Our ROCKs support two backends: Cephadm and Rook. The features that each
+Our rocks support two backends: Cephadm and Rook. The features that each
 support are given below.
 
 | Feature | Cephadm | Rook |

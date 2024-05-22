@@ -1,4 +1,4 @@
-name: Publish Temporary ROCK
+name: Publish Temporary Rock
 
 on:
   pull_request:
@@ -43,7 +43,7 @@ jobs:
           sudo systemctl reload snap.lxd.daemon
           sleep 5
 
-      - name: Patch PR information into ROCK recipe
+      - name: Patch PR information into rock recipe
         id: versioning
         run: |
             PKG_VER_STR=$(sudo rockcraft pull pkg_info -v &>  >(grep "Version"))
