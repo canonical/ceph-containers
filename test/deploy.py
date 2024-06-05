@@ -12,7 +12,8 @@ import subprocess
 
 # Helper Translation Tables
 ceph_version_to_cloud_archive = {
-    'reef': 'bobcat'
+    'reef': 'bobcat',
+    'squid': 'caracal'
 }
 
 
@@ -226,7 +227,7 @@ class DeployRunner:
 
     def create_instance(
         self,
-        image="ubuntu/jammy",
+        image="jammy",
         flavor="c4-m10",
         pool_name=deploy_tag,
         profile_name=deploy_tag,
