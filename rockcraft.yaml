@@ -2,7 +2,7 @@ name: ceph
 base: ubuntu@22.04
 version: '0.1' # replaced by CI when building to publish.
 summary: Ubuntu based Ceph container image
-description: ROCK for Containerised Ceph based on Ubuntu Ceph distribution. 
+description: Rock for Containerised Ceph based on Ubuntu Ceph distribution. 
 license: Apache-2.0
 platforms:
     amd64:
