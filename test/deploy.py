@@ -2,13 +2,13 @@
 import os
 import pwd
 import json
-import yaml
 import time
-import pylxd
 import string
 import random
 import argparse
 import subprocess
+import pylxd
+import yaml
 
 # Helper Translation Tables
 ceph_version_to_cloud_archive = {
@@ -39,7 +39,7 @@ class Cleaner:
     def __init__(self, model_file_path: string) -> None:
         if os.path.exists(model_file_path):
             # init client
-            self.client = pylxd.Client()
+            self.client = pylxd.Client(project='default')
             self.clean(model_file_path)
         else:
             print(f"Model File {model_file_path} does not exists.")
@@ -91,6 +91,7 @@ class Cleaner:
 
 
 class DeployRunner:
+    """Deploys LXD based Cephadm"""
     # LXD Vars
     model_id = _get_random_string(4)
     deploy_tag = "ubuntu-ceph-" + model_id
@@ -226,7 +227,7 @@ class DeployRunner:
 
     def create_instance(
         self,
-        image="ubuntu/jammy",
+        image_name="jammy",
         flavor="c4-m10",
         pool_name=deploy_tag,
         profile_name=deploy_tag,
@@ -254,8 +255,8 @@ class DeployRunner:
             "source": {
                 "type": "image",
                 "certificate": "",
-                "alias": image,
-                "server": "https://images.linuxcontainers.org",
+                "alias": image_name,
+                "server": "https://cloud-images.ubuntu.com/releases",
                 "protocol": "simplestreams",
                 "mode": "pull",
                 "allow_inconsistent": False,
@@ -362,6 +363,7 @@ class DeployRunner:
             )
 
     def wait_for_instance_ready(self, instance_name, max_attempt=20) -> None:
+        """Wait for the LXD instance to be ready."""
         is_container_ready = False
         counter = 0
         while not is_container_ready:
