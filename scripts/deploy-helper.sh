@@ -18,6 +18,15 @@
 
 set -xeEo pipefail
 
+function install_custom_runner_dependencies() {
+  sudo apt-get -y update
+  sudo apt-get -y install skopeo
+  sudo python -m pip install --upgrade pip
+  sudo pip install flake8 pep8-naming pylxd pyyaml argparse
+  sudo snap install docker
+  sleep 10
+}
+
 
 function deploy_operator_with_custom_image() {
   local yaml=${1:?missing}
