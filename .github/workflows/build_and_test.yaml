@@ -24,6 +24,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+      - name: Setup LXD
+        uses: canonical/setup-lxd@v0.1.1
+        with:
+          channel: 5.21/stable
       - name: Prepare Rock
         uses: canonical/craft-actions/rockcraft-pack@main
         id: rockcraft
