@@ -69,6 +69,7 @@ parts:
             - lsof
             - etcd-client
             - s3cmd
+            - python3-onelogin-saml2
 
     # Confd is a configuration management system that can actively watch a consistent kv store like etcd and change config files based on templates.
     confd:
