@@ -27,6 +27,7 @@ jobs:
 
       - name: Install deps and clean legacy rules.
         run: |
+          sudo snap install docker
           sudo snap install rockcraft --classic --channel latest/stable
           for ipt in iptables iptables-legacy ip6tables ip6tables-legacy; do sudo $ipt --flush; sudo $ipt --flush -t nat; sudo $ipt --delete-chain; sudo $ipt --delete-chain -t nat; sudo $ipt -P FORWARD ACCEPT; sudo $ipt -P INPUT ACCEPT; sudo $ipt -P OUTPUT ACCEPT; done
           sudo systemctl reload snap.lxd.daemon

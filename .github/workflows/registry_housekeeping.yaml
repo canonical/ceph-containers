@@ -10,11 +10,12 @@ jobs:
     name: GHCR cleanup
     runs-on: ubuntu-22.04
     steps:
-      - name: Delete all untagged Hotfixes.
+      - name: Delete all untagged Hotfixes older than 6 months
         uses: snok/container-retention-policy@v2
         with:
-          image-names: hotfix-*
-          cut-off: one month ago UTC
+          image-names: ceph
+          image-tags: hotfix-*
+          cut-off: 6months
           timestamp-to-use: updated_at
           untagged-only: true
           account-type: org
@@ -22,13 +23,3 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           token-type: github-token
 
-      - name: Delete all tagged Hotfixes older than 6 months.
-        uses: snok/container-retention-policy@v2
-        with:
-          image-names: hotfix-*
-          cut-off: six months ago UTC
-          timestamp-to-use: updated_at
-          account-type: org
-          org-name: canonical
-          token: ${{ secrets.GITHUB_TOKEN }}
-          token-type: github-token
