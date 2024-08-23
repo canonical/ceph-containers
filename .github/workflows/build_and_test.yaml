@@ -51,7 +51,7 @@ jobs:
 
 
   CephadmTest:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest, self-hosted
     needs: [build-rock, flake8-lint]
     strategy:
       matrix:
