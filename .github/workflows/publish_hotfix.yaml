@@ -12,8 +12,6 @@ jobs:
     runs-on: ubuntu-22.04
     permissions:
       packages: write
-    outputs:
-      rock: ${{ steps.rockcraft.outputs.rock }}
     steps:
       - run: |
           echo Publishing container image for PR# $NUMBER
@@ -34,7 +32,7 @@ jobs:
       - name: Setup LXD
         uses: canonical/setup-lxd@v0.1.1
         with:
-          channel: 5.20/stable
+          channel: 5.21/edge
 
       - name: Install deps and clean legacy rules.
         run: |
@@ -70,19 +68,10 @@ jobs:
             type=raw,value=hotfix-${{ github.event.pull_request.number }}-${{ steps.versioning.outputs.ceph_version }}
   
       - name: Prepare Rock
-        uses: canonical/craft-actions/rockcraft-pack@main
-        id: rockcraft
+        run: ./scripts/test-helper.sh build_rock
 
       - name: Load to Docker daemon
-        run: |
-            # iterate through the tags
-            for tag in $TAGS; do
-              echo "$tag"
-              skopeo --insecure-policy copy oci-archive:${{ steps.rockcraft.outputs.rock }} docker-daemon:$tag
-            done
-            docker image ls -a
-            sleep 10
-            docker push ghcr.io/canonical/ceph --all-tags
+        run: ./scripts/test-helper.sh load_to_docker $TAGS
         env:
           TAGS: ${{ steps.meta.outputs.tags }}
 
