@@ -71,6 +71,7 @@ parts:
             - python3-natsort
             - sharutils
             - lsof
+            - python3-onelogin-saml2
 
     kubectl:
         plugin: go
