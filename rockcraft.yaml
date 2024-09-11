@@ -1,5 +1,5 @@
 name: ceph
-base: ubuntu:22.04 # the base environment for this ROCK
+base: ubuntu@22.04
 version: '0.1' # replaced by CI when building to publish.
 summary: Ubuntu based Ceph container image
 description: ROCK for Containerised Ceph based on Ubuntu Ceph distribution. 
@@ -46,7 +46,6 @@ parts:
             - rbd-mirror
             # Utilities
             - gnupg 
-            - curl 
             - ca-certificates
             - kmod
             - lvm2
@@ -56,8 +55,6 @@ parts:
             - nvme-cli
             - attr # utilities for manipulating filesystem extended attributes
             - targetcli-fb
-            - wget
-            - unzip
             - uuid-runtime
             - python-setuptools
             - udev
@@ -67,19 +64,6 @@ parts:
             - python3-natsort
             - sharutils
             - lsof
-            - etcd-client
-            - s3cmd
-
-    # Confd is a configuration management system that can actively watch a consistent kv store like etcd and change config files based on templates.
-    confd:
-        plugin: dump
-        source: https://github.com/kelseyhightower/confd/releases/download/v0.16.0/confd-0.16.0-linux-amd64
-        source-type: file
-        override-build: |
-            mv confd-0.16.0-linux-amd64 /usr/local/bin/confd
-            chmod +x /usr/local/bin/confd
-            mkdir -p /etc/confd/conf.d
-            mkdir -p /etc/confd/templates
 
     kubectl:
         plugin: go
@@ -89,27 +73,12 @@ parts:
         source-type: local
 
     local-files:
-        after:
-            - confd
         plugin: dump
         source: . # all local files
         organize:
-            # Confd
-            confd/templates/* : ${CRAFT_PART_INSTALL}/etc/confd/templates/
-            confd/conf.d/*    : ${CRAFT_PART_INSTALL}/etc/confd/conf.d/
-            # Sree is a minimalistic pythonic browser based client for S3
-            docker_scripts/Sree-0.2.tar.gz: ${CRAFT_PART_INSTALL}/opt/ceph-container/tmp/sree.tar.gz
-            # Docker scripts
-            docker_scripts/*.sh : ${CRAFT_PART_INSTALL}/opt/ceph-container/bin/
-            docker_scripts/check_zombie_mons.py : ${CRAFT_PART_INSTALL}/opt/ceph-container/bin/
-            docker_scripts/osd_scenarios/* : ${CRAFT_PART_INSTALL}/opt/ceph-container/bin/
-            docker_scripts/entrypoint.sh.in : ${CRAFT_PART_INSTALL}/opt/ceph-container/bin/entrypoint.sh
-            docker_scripts/disabled_scenario : ${CRAFT_PART_INSTALL}/opt/ceph-container/bin/
             # Logrotate (required by Rook prod spec)
             logrotate.d/* : ${CRAFT_PART_INSTALL}/etc/logrotate.d/
             # Ceph defaults
             ceph.defaults : ${CRAFT_PART_INSTALL}/opt/ceph-container/etc/
-            # s3cfg
-            s3cfg : ${CRAFT_PART_INSTALL}/root/.s3cfg
 
 

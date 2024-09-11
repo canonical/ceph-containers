@@ -19,22 +19,37 @@ defaults:
 jobs:
   build-rock:
     runs-on: ubuntu-latest
-    outputs:
-      rock: ${{ steps.rockcraft.outputs.rock }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+      - name: Setup LXD
+        uses: canonical/setup-lxd@v0.1.1
+        with:
+          channel: 5.21/edge
       - name: Prepare Rock
-        uses: canonical/craft-actions/rockcraft-pack@main
-        id: rockcraft
+        run: ./scripts/test-helper.sh build_rock
       - uses: actions/upload-artifact@v3
         with:
           name: rock
-          path: ${{ steps.rockcraft.outputs.rock }}
+          path: ceph.rock
 
-  CephAdmScriptTest:
+  flake8-lint:
     runs-on: ubuntu-latest
-    needs: build-rock
+    name: Lint
+    steps:
+      - name: Check out source repository
+        uses: actions/checkout@v3
+      - name: Set up Python environment
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+      - name: flake8 Lint
+        uses: py-actions/flake8@v2
+
+
+  CephadmTest:
+    runs-on: ubuntu-latest
+    needs: [build-rock, flake8-lint]
     strategy:
       matrix:
         python-version: ["3.10"]
@@ -60,75 +75,14 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: install dependencies
-        run: |
-          sudo apt install skopeo
-          sudo python -m pip install --upgrade pip
-          sudo pip install flake8 pep8-naming pylxd pyyaml argparse
-
-      - name: Lint Check
-        run: |
-          flake8 . --count --show-source --statistics
-
-      - name: use local block device
-        run: ./test/scripts/cephadm_helper.sh use_local_disk
+        run: ./scripts/deploy-helper.sh install_custom_runner_dependencies
 
       - name: Load image to registry
         run: |
           ls
           rock_file=$(ls *.rock | head -1)
           docker run -d -p 5000:5000 --restart=always --name registry registry:2
-          skopeo --insecure-policy copy oci-archive:$rock_file docker-daemon:canonical/ceph:latest
-          docker image ls -a
-          docker image tag canonical/ceph:latest localhost:5000/canonical/ceph:latest
           sleep 10
-          docker push localhost:5000/canonical/ceph
-          echo $'[registries.insecure]\nregistries = ["localhost:5000"]' | sudo tee -a /etc/containers/registries.conf
-
-      - name: Deploy Cephadm over Host
-        run: |
-          sudo python test/deploy.py --osd-num 1 --direct-host 1 image "localhost:5000/canonical/ceph:latest"
-
-  CephAdmScriptLxdTest:
-    runs-on: ubuntu-latest
-    needs: build-rock
-    strategy:
-      matrix:
-        python-version: ["3.10"]
-
-    steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v3
-      - name: clean unrequired files.
-        run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf "/usr/local/share/boost"
-          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
-
-      - name: Download artifact
-        uses: actions/download-artifact@v3
-        with:
-          name: rock
-
-      - name: set up python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: install dependencies
-        run: |
-          sudo python -m pip install --upgrade pip
-          sudo pip install flake8 pep8-naming pylxd pyyaml argparse
-
-      - name: Lint Check
-        run: |
-          flake8 . --count --show-source --statistics
-
-      - name: Load image to registry
-        run: |
-          ls
-          rock_file=$(ls *.rock | head -1)
-          docker run -d -p 5000:5000 --restart=always --name registry registry:2
           skopeo --insecure-policy copy oci-archive:$rock_file docker-daemon:canonical/ceph:latest
           docker image ls -a
           docker image tag canonical/ceph:latest localhost:5000/canonical/ceph:latest
@@ -150,7 +104,7 @@ jobs:
       - name: Deploy Cephadm over LXD Container
         run: |
           reg_addr=$(./test/scripts/cephadm_helper.sh get_ip)
-          sudo python test/deploy.py --osd-num 0 --container 1 image "$reg_addr:5000/canonical/ceph:latest"
+          sudo python test/deploy.py --osd-num 3 --container 1 image "$reg_addr:5000/canonical/ceph:latest"
 
   RookTest:
     needs: build-rock
