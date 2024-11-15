@@ -90,10 +90,10 @@ jobs:
           docker push localhost:5000/canonical/ceph
           echo $'[registries.insecure]\nregistries = ["localhost:5000"]' | sudo tee -a /etc/containers/registries.conf
 
-      - name: install and init lxd snap
-        run: |
-          sudo snap install lxd
-          sudo lxd init --auto
+      - name: Setup LXD
+        uses: canonical/setup-lxd@v0.1.1
+        with:
+          channel: 5.21/stable
 
       - name: clean iptables legacy
         run: |
