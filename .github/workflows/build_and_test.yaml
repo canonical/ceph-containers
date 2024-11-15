@@ -101,8 +101,35 @@ jobs:
           sudo systemctl reload snap.lxd.daemon
           sleep 5
 
-      - name: Deploy Cephadm over LXD Container
+      - name: Setup LXD vm as host
         run: |
+          lxc launch --vm ubuntu:24.04 cephadm --config limits.cpu=2 --config limits.memory=8GiB  
+          lxc storage volume create default osd_one --type block
+          lxc storage volume create default osd_two --type block
+          lxc storage volume create default osd_three --type block
+          lxc storage volume attach default osd_one cephadm
+          lxc storage volume attach default osd_two cephadm
+          lxc storage volume attach default osd_three cephadm
+
+      - name: Copy helper scripts to LXD vm
+        run: |
+          lxc file push ./scripts/*.sh cephadm/root/ -r
+
+      - name: Install cephadm with local image
+        run: |
+          reg_addr=$(lxc exec cephadm -- sh -c "~/cephadm_helper.sh get_ip)
+          lxc exec cephadm -- sh -c "~/cephadm_helper.sh deploy_cephadm $reg_addr:5000/canonical/ceph:latest"
+          sleep 2m
+
+      - name: deploy 3 OSDs
+        run: |
+          lxc exec cephadm -- sh -c "ceph orch apply osd --all-available-devices" 
+          sleep 2m
+          lxc exec cephadm --sh -c "ceph -s"
+
+      - name: check healthy
+        run: ls
+      
           reg_addr=$(./test/scripts/cephadm_helper.sh get_ip)
           sudo python test/deploy.py --osd-num 3 --ceph-version reef image "$reg_addr:5000/canonical/ceph:latest"
 
