@@ -125,6 +125,12 @@ jobs:
           lxc exec cephadm -- sh -c "~/cephadm_helper.sh deploy_cephadm $reg_addr:5000/canonical/ceph:latest"
           sleep 2m
 
+      - name: Check health
+        run: |
+          # Check mon/mgr count is 1 each
+          lxc exec cephadm -- sh -c "~/cephadm_helper.sh poll_obj_count mon 1"
+          lxc exec cephadm -- sh -c "~/cephadm_helper.sh poll_obj_count mgr 1"
+
       - name: deploy 3 OSDs
         run: |
           lxc exec cephadm -- sh -c "ceph orch apply osd --all-available-devices" 
@@ -132,10 +138,7 @@ jobs:
           lxc exec cephadm --sh -c "ceph -s"
 
       - name: check healthy
-        run: ls
-      
-          reg_addr=$(./test/scripts/cephadm_helper.sh get_ip)
-          sudo python test/deploy.py --osd-num 3 --ceph-version reef image "$reg_addr:5000/canonical/ceph:latest"
+        run: lxc exec cephadm -- sh -c "~/cephadm_helper.sh poll_obj_count osd 3"
 
   RookTest:
     needs: build-rock

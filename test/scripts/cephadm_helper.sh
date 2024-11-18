@@ -86,6 +86,30 @@ function test_num_objs() {
     fi
 }
 
+function poll_obj_count() {
+  local what=${1:?missing}
+  local count=${2:?missing}
+  local timeout=${3:?missing}
+
+  echo "Polling for $what to reach $count under $timeout"
+  i=0
+  for i in $(seq 1 10); do
+    num_objs=$( get_num_objs $what )
+    if [ $num_objs == $count ]; then
+      echo "$what reached $count in ${i}th iteration."
+      break
+    else 
+      echo "."
+      sleep 30
+    fi
+  done
+
+  if [ $i -eq 10 ]; then
+    echo "Timeout waiting for $what, only reached $( get_num_objs $what )"
+    exit -1
+  fi
+}
+
 FUNCTION="$1"
 shift
 $FUNCTION "$@"
