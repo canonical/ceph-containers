@@ -97,6 +97,8 @@ jobs:
 
       - name: clean iptables legacy
         run: |
+          # Sleep for some time for LXD to settle.
+          sleep 2m
           for ipt in iptables iptables-legacy ip6tables ip6tables-legacy; do sudo $ipt --flush; sudo $ipt --flush -t nat; sudo $ipt --delete-chain; sudo $ipt --delete-chain -t nat; sudo $ipt -P FORWARD ACCEPT; sudo $ipt -P INPUT ACCEPT; sudo $ipt -P OUTPUT ACCEPT; done
           sudo systemctl reload snap.lxd.daemon
           sleep 5
@@ -107,6 +109,8 @@ jobs:
           lxc storage volume create default osd_one --type block
           lxc storage volume create default osd_two --type block
           lxc storage volume create default osd_three --type block
+          # Sleep for LXD VM to come up before attaching the disks 
+          sleep 2m
           lxc storage volume attach default osd_one cephadm
           lxc storage volume attach default osd_two cephadm
           lxc storage volume attach default osd_three cephadm
