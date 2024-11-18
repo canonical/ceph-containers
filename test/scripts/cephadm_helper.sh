@@ -14,6 +14,26 @@ function prep_docker() {
     docker push localhost:5000/canonical/ceph:latest
 }
 
+function install_dependencies() {
+  sudo apt-get -y update
+  sudo apt-get -y install skopeo
+  sudo snap install docker
+  sleep 10
+}
+
+function prep_registry() {
+  ls
+  rock_file=$(ls *.rock | head -1)
+  docker run -d -p 5000:5000 --restart=always --name registry registry:2
+  sleep 10
+  skopeo --insecure-policy copy oci-archive:$rock_file docker-daemon:canonical/ceph:latest
+  docker image ls -a
+  docker image tag canonical/ceph:latest localhost:5000/canonical/ceph:latest
+  sleep 10
+  docker push localhost:5000/canonical/ceph
+  echo $'[registries.insecure]\nregistries = ["localhost:5000"]' | sudo tee -a /etc/containers/registries.conf
+}
+
 function use_local_disk() {
     sudo lsblk -f
     datadisk=$(sudo lsblk --paths | awk '/14G/ || /64G/ {print $1}' | head -1)
@@ -60,9 +80,10 @@ function get_ip() {
 }
 
 function deploy_cephadm() {
-    local image=${1:?missing}
+    local ip=$( get_ip )
+
     install_apt
-    bootstrap $image $( get_ip )
+    bootstrap $ip:5000/canonical/ceph:latest $ip
     test_num_objs mon 1
 }
 

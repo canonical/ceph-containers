@@ -77,19 +77,6 @@ jobs:
       - name: install dependencies
         run: ./scripts/deploy-helper.sh install_custom_runner_dependencies
 
-      - name: Load image to registry
-        run: |
-          ls
-          rock_file=$(ls *.rock | head -1)
-          docker run -d -p 5000:5000 --restart=always --name registry registry:2
-          sleep 10
-          skopeo --insecure-policy copy oci-archive:$rock_file docker-daemon:canonical/ceph:latest
-          docker image ls -a
-          docker image tag canonical/ceph:latest localhost:5000/canonical/ceph:latest
-          sleep 10
-          docker push localhost:5000/canonical/ceph
-          echo $'[registries.insecure]\nregistries = ["localhost:5000"]' | sudo tee -a /etc/containers/registries.conf
-
       - name: Setup LXD
         uses: canonical/setup-lxd@v0.1.1
         with:
@@ -115,15 +102,21 @@ jobs:
           lxc storage volume attach default osd_two cephadm
           lxc storage volume attach default osd_three cephadm
 
-      - name: Copy helper scripts to LXD vm
+      - name: Copy necessary assets to LXD vm
         run: |
-          lxc file push ./scripts/*.sh cephadm/root/ -r
+          rock_file=$(ls *.rock | head -1)
+          lxc file push ./test/scripts/cephadm_helper.sh cephadm/root/ -r
+          lxc file push $rock_file cephadm/root/
+      
+      - name: Prepare the docker registry
+        run: |
+          lxc exec cephadm -- sh -c "~/cephadm_helper.sh install_dependencies" 
+          lxc exec cephadm -- sh -c "~/cephadm_helper.sh prep_registry
 
       - name: Install cephadm with local image
         run: |
-          reg_addr=$(lxc exec cephadm -- sh -c "~/cephadm_helper.sh get_ip)
-          lxc exec cephadm -- sh -c "~/cephadm_helper.sh deploy_cephadm $reg_addr:5000/canonical/ceph:latest"
-          sleep 2m
+          lxc exec cephadm -- sh -c "~/cephadm_helper.sh deploy_cephadm"
+          sleep 3m
 
       - name: Check health
         run: |
@@ -137,7 +130,7 @@ jobs:
           sleep 2m
           lxc exec cephadm --sh -c "ceph -s"
 
-      - name: check healthy
+      - name: check health
         run: lxc exec cephadm -- sh -c "~/cephadm_helper.sh poll_obj_count osd 3"
 
   RookTest:
