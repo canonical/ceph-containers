@@ -32,6 +32,7 @@ function prep_registry() {
   sleep 10
   docker push localhost:5000/canonical/ceph
   echo $'[registries.insecure]\nregistries = ["localhost:5000"]' | sudo tee -a /etc/containers/registries.conf
+  sleep 30
 }
 
 function use_local_disk() {

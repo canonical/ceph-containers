@@ -108,10 +108,10 @@ jobs:
           lxc file push ./test/scripts/cephadm_helper.sh cephadm/root/ -r
           lxc file push $rock_file cephadm/root/
       
-      - name: Prepare the docker registry
+      - name: Prepare docker registry
         run: |
           lxc exec cephadm -- sh -c "~/cephadm_helper.sh install_dependencies" 
-          lxc exec cephadm -- sh -c "~/cephadm_helper.sh prep_registry
+          lxc exec cephadm -- sh -c "~/cephadm_helper.sh prep_registry"
 
       - name: Install cephadm with local image
         run: |
