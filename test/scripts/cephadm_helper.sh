@@ -72,7 +72,8 @@ function install_apt() {
 function bootstrap() {
     local image="${1:missing}"
     local ip="${2:?missing}"
-    sudo cephadm --image $image bootstrap --mon-ip $ip --single-host-defaults
+    # skipping dashboard since the pyo3 dependency for cryptography has failures.
+    sudo cephadm --image $image bootstrap --mon-ip $ip --single-host-defaults --skip-dashboard
     df -H
 }
 
@@ -84,7 +85,7 @@ function deploy_cephadm() {
     local ip=$( get_ip )
 
     install_apt
-    bootstrap $ip:5000/canonical/ceph:latest $ip
+    bootstrap localhost:5000/canonical/ceph:latest $ip
     test_num_objs mon 1
 }
 
@@ -111,9 +112,8 @@ function test_num_objs() {
 function poll_obj_count() {
   local what=${1:?missing}
   local count=${2:?missing}
-  local timeout=${3:?missing}
 
-  echo "Polling for $what to reach $count under $timeout"
+  echo "Polling for $what to reach $count"
   i=0
   for i in $(seq 1 10); do
     num_objs=$( get_num_objs $what )
