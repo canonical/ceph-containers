@@ -64,11 +64,11 @@ jobs:
             # iterate through the tags
             for tag in $TAGS; do
               echo "$tag"
-              skopeo --insecure-policy copy oci-archive:${{ steps.rockcraft.outputs.rock }} docker-daemon:$tag
+              sudo skopeo --insecure-policy copy oci-archive:${{ steps.rockcraft.outputs.rock }} docker-daemon:$tag
             done
-            docker image ls -a
+            sudo docker image ls -a
             sleep 10
-            docker push ghcr.io/canonical/ceph --all-tags
+            sudo docker push ghcr.io/canonical/ceph --all-tags
         env:
           TAGS: ${{ steps.meta.outputs.tags }}
 
