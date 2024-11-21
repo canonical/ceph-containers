@@ -64,7 +64,8 @@ jobs:
             # iterate through the tags
             for tag in $TAGS; do
               echo "$tag"
-              skopeo --insecure-policy copy oci-archive:${{ steps.rockcraft.outputs.rock }} docker-daemon:$tag
+              docker image ls -a
+              docker import ${{ steps.rockcraft.outputs.rock }} $tag
             done
             docker image ls -a
             sleep 10
