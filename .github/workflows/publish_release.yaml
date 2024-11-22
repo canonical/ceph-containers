@@ -59,9 +59,19 @@ jobs:
             type=raw,value=reef,enable=${{ startsWith(steps.versioning.outputs.ceph_version, '18') }}
 
       - name: Prepare Rock
-        run: ./scripts/test-helper.sh build_rock
+        uses: canonical/craft-actions/rockcraft-pack@main
+        id: rockcraft
 
       - name: Load to Docker daemon
-        run: ./scripts/test-helper.sh load_to_docker $TAGS
+        run: |
+            # iterate through the tags
+            for tag in $TAGS; do
+              echo "$tag"
+              docker image ls -a
+              docker import ${{ steps.rockcraft.outputs.rock }} $tag
+            done
+            docker image ls -a
+            sleep 10
+            docker push ghcr.io/canonical/ceph --all-tags
         env:
           TAGS: ${{ steps.meta.outputs.tags }}
