@@ -14,6 +14,27 @@ function prep_docker() {
     docker push localhost:5000/canonical/ceph:latest
 }
 
+function install_dependencies() {
+  sudo apt-get -y update
+  sudo apt-get -y install skopeo
+  sudo snap install docker
+  sleep 10
+}
+
+function prep_registry() {
+  ls
+  rock_file=$(ls *.rock | head -1)
+  docker run -d -p 5000:5000 --restart=always --name registry registry:2
+  sleep 10
+  skopeo --insecure-policy copy oci-archive:$rock_file docker-daemon:canonical/ceph:latest
+  docker image ls -a
+  docker image tag canonical/ceph:latest localhost:5000/canonical/ceph:latest
+  sleep 10
+  docker push localhost:5000/canonical/ceph
+  echo $'[registries.insecure]\nregistries = ["localhost:5000"]' | sudo tee -a /etc/containers/registries.conf
+  sleep 30
+}
+
 function use_local_disk() {
     sudo lsblk -f
     datadisk=$(sudo lsblk --paths | awk '/14G/ || /64G/ {print $1}' | head -1)
@@ -51,7 +72,8 @@ function install_apt() {
 function bootstrap() {
     local image="${1:missing}"
     local ip="${2:?missing}"
-    sudo cephadm --image $image bootstrap --mon-ip $ip --single-host-defaults
+    # skipping dashboard since the pyo3 dependency for cryptography has failures.
+    sudo cephadm --image $image bootstrap --mon-ip $ip --single-host-defaults --skip-dashboard
     df -H
 }
 
@@ -60,9 +82,10 @@ function get_ip() {
 }
 
 function deploy_cephadm() {
-    local image=${1:?missing}
+    local ip=$( get_ip )
+
     install_apt
-    bootstrap $image $( get_ip )
+    bootstrap localhost:5000/canonical/ceph:latest $ip
     test_num_objs mon 1
 }
 
@@ -84,6 +107,29 @@ function test_num_objs() {
         sudo cephadm shell -- ceph status
         exit -1
     fi
+}
+
+function poll_obj_count() {
+  local what=${1:?missing}
+  local count=${2:?missing}
+
+  echo "Polling for $what to reach $count"
+  i=0
+  for i in $(seq 1 10); do
+    num_objs=$( get_num_objs $what )
+    if [ $num_objs == $count ]; then
+      echo "$what reached $count in ${i}th iteration."
+      break
+    else 
+      echo "."
+      sleep 30
+    fi
+  done
+
+  if [ $i -eq 10 ]; then
+    echo "Timeout waiting for $what, only reached $( get_num_objs $what )"
+    exit -1
+  fi
 }
 
 FUNCTION="$1"

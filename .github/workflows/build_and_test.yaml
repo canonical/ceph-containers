@@ -78,34 +78,61 @@ jobs:
       - name: install dependencies
         run: ./scripts/deploy-helper.sh install_custom_runner_dependencies
 
-      - name: Load image to registry
-        run: |
-          ls
-          rock_file=$(ls *.rock | head -1)
-          docker run -d -p 5000:5000 --restart=always --name registry registry:2
-          sleep 10
-          skopeo --insecure-policy copy oci-archive:$rock_file docker-daemon:canonical/ceph:latest
-          docker image ls -a
-          docker image tag canonical/ceph:latest localhost:5000/canonical/ceph:latest
-          sleep 10
-          docker push localhost:5000/canonical/ceph
-          echo $'[registries.insecure]\nregistries = ["localhost:5000"]' | sudo tee -a /etc/containers/registries.conf
-
-      - name: install and init lxd snap
-        run: |
-          sudo snap install lxd
-          sudo lxd init --auto
+      - name: Setup LXD
+        uses: canonical/setup-lxd@v0.1.1
+        with:
+          channel: 5.21/stable
 
       - name: clean iptables legacy
         run: |
+          # Sleep for some time for LXD to settle.
+          sleep 2m
           for ipt in iptables iptables-legacy ip6tables ip6tables-legacy; do sudo $ipt --flush; sudo $ipt --flush -t nat; sudo $ipt --delete-chain; sudo $ipt --delete-chain -t nat; sudo $ipt -P FORWARD ACCEPT; sudo $ipt -P INPUT ACCEPT; sudo $ipt -P OUTPUT ACCEPT; done
           sudo systemctl reload snap.lxd.daemon
           sleep 5
 
-      - name: Deploy Cephadm over LXD Container
+      - name: Setup LXD vm as host
         run: |
-          reg_addr=$(./test/scripts/cephadm_helper.sh get_ip)
-          sudo python test/deploy.py --osd-num 3 --ceph-version reef image "$reg_addr:5000/canonical/ceph:latest"
+          lxc launch --vm ubuntu:24.04 cephadm --config limits.cpu=2 --config limits.memory=8GiB  
+          lxc storage volume create default osd_one --type block
+          lxc storage volume create default osd_two --type block
+          lxc storage volume create default osd_three --type block
+          # Sleep for LXD VM to come up before attaching the disks 
+          sleep 2m
+          lxc storage volume attach default osd_one cephadm
+          lxc storage volume attach default osd_two cephadm
+          lxc storage volume attach default osd_three cephadm
+
+      - name: Copy necessary assets to LXD vm
+        run: |
+          rock_file=$(ls *.rock | head -1)
+          lxc file push ./test/scripts/cephadm_helper.sh cephadm/root/ -r
+          lxc file push $rock_file cephadm/root/
+      
+      - name: Prepare docker registry
+        run: |
+          lxc exec cephadm -- sh -c "~/cephadm_helper.sh install_dependencies" 
+          lxc exec cephadm -- sh -c "~/cephadm_helper.sh prep_registry"
+
+      - name: Install cephadm with local image
+        run: |
+          lxc exec cephadm -- sh -c "~/cephadm_helper.sh deploy_cephadm"
+          sleep 3m
+
+      - name: Check health
+        run: |
+          # Check mon/mgr count is 1 each
+          lxc exec cephadm -- sh -c "~/cephadm_helper.sh poll_obj_count mon 1"
+          lxc exec cephadm -- sh -c "~/cephadm_helper.sh poll_obj_count mgr 1"
+
+      - name: deploy 3 OSDs
+        run: |
+          lxc exec cephadm -- sh -c "ceph orch apply osd --all-available-devices" 
+          sleep 2m
+          lxc exec cephadm --sh -c "ceph -s"
+
+      - name: check health
+        run: lxc exec cephadm -- sh -c "~/cephadm_helper.sh poll_obj_count osd 3"
 
   RookTest:
     needs: build-rock
