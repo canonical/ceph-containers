@@ -25,13 +25,14 @@ jobs:
       - name: Setup LXD
         uses: canonical/setup-lxd@v0.1.1
         with:
-          channel: 5.21/edge
+          channel: 5.21/stable
       - name: Prepare Rock
-        run: ./scripts/test-helper.sh build_rock
+        uses: canonical/craft-actions/rockcraft-pack@main
+        id: rockcraft
       - uses: actions/upload-artifact@v3
         with:
           name: rock
-          path: ceph.rock
+          path: ${{ steps.rockcraft.outputs.rock }} 
 
   flake8-lint:
     runs-on: ubuntu-latest
