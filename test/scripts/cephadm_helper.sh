@@ -51,7 +51,7 @@ function install_apt() {
 function bootstrap() {
     local image="${1:missing}"
     local ip="${2:?missing}"
-    sudo cephadm --image $image bootstrap --mon-ip $ip --single-host-defaults
+    sudo cephadm --image $image bootstrap --mon-ip $ip --single-host-defaults --skip-dashboard --skip-monitoring-stack
     df -H
 }
 
