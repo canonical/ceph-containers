@@ -76,7 +76,7 @@ jobs:
             for tag in $TAGS; do
               echo "$tag"
               docker image ls -a
-              docker import ${{ steps.rockcraft.outputs.rock }} $tag
+              rockcraft.skopeo --insecure-policy copy oci-archive:${{ steps.rockcraft.outputs.rock }} docker-daemon:$tag
             done
             docker image ls -a
             sleep 10
