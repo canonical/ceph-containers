@@ -50,7 +50,7 @@ jobs:
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
 
       - name: Download artifact
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: rock
 
@@ -179,7 +179,7 @@ jobs:
           ./tests/scripts/github-action-helper.sh create_partitions_for_osds
 
       - name: Download artifact
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: rock
 
