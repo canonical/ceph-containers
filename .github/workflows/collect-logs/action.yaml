@@ -17,7 +17,7 @@ runs:
         tests/scripts/collect-logs.sh
 
     - name: Upload canary test result
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: ${{ inputs.name }}
         path: /home/runner/work/test
