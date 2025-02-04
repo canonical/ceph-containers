@@ -78,19 +78,6 @@ jobs:
       - name: install dependencies
         run: ./scripts/deploy-helper.sh install_custom_runner_dependencies
 
-      - name: Load image to registry
-        run: |
-          ls
-          rock_file=$(ls *.rock | head -1)
-          docker run -d -p 5000:5000 --restart=always --name registry registry:2
-          sleep 10
-          skopeo --insecure-policy copy oci-archive:$rock_file docker-daemon:canonical/ceph:latest
-          docker image ls -a
-          docker image tag canonical/ceph:latest localhost:5000/canonical/ceph:latest
-          sleep 10
-          docker push localhost:5000/canonical/ceph
-          echo $'[registries.insecure]\nregistries = ["localhost:5000"]' | sudo tee -a /etc/containers/registries.conf
-
       - name: install and init lxd snap
         run: |
           sudo snap install lxd
@@ -102,14 +89,28 @@ jobs:
           sudo systemctl reload snap.lxd.daemon
           sleep 5
 
-      - name: Deploy Cephadm over LXD Container
+      - name: Setup LXD machine
         run: |
-          reg_addr=$(./test/scripts/cephadm_helper.sh get_ip)
-          sudo python test/deploy.py --osd-num 3 --ceph-version reef image "$reg_addr:5000/canonical/ceph:latest"
+          
+          ./test/scripts/cephadm_helper.sh setupLXDMachine
+          ./test/scripts/cephadm_helper.sh runOnHost cephadm0 install_apt 
+          ./test/scripts/cephadm_helper.sh runOnHost cephadm0 configure_insecure_registry
+
+          ./test/scripts/cephadm_helper.sh runOnHost cephadm0 deploy_cephadm localhost:5000/canonical/ceph:latest
+
+      - name: Add storage to machine
+        run: |
+          ./test/scripts/cephadm_helper.sh add_storage_devices
+
+      - name: Deploy osd service 
+        run: |
+          ./test/scripts/cephadm_helper.sh runOnHost cephadm0 deploy_osd 
+          ./test/scripts/cephadm_helper.sh runOnHost cephadm0 wait_num_objs osd 3 
 
   RookTest:
     needs: build-rock
-    runs-on: ubuntu-latest
+    # Minikube action only works on Jammy. 
+    runs-on: ubuntu-22.04
 
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
