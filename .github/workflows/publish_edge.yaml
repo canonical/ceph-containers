@@ -55,6 +55,7 @@ jobs:
           tags: |
             type=raw,value=quincy-edge,enable=${{ startsWith(steps.versioning.outputs.ceph_version, '17') }}
             type=raw,value=reef-edge,enable=${{ startsWith(steps.versioning.outputs.ceph_version, '18') }}
+            type=raw,value=squid-edge,enable=${{ startsWith(steps.versioning.outputs.ceph_version, '19') }}
             type=raw,value=dev-edge,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
 
       - name: Prepare Rock

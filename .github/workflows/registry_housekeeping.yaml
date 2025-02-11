@@ -8,16 +8,17 @@ on:
 jobs:
   clean-ghcr:
     name: GHCR cleanup
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
       - name: Delete all untagged Hotfixes older than 6 months
-        uses: snok/container-retention-policy@v2
+        uses: snok/container-retention-policy@v3.0.0
         with:
           image-names: ceph
           image-tags: hotfix-*
           cut-off: 6months
           timestamp-to-use: updated_at
-          untagged-only: true
+          tag-selection: both  # select both tagged and untagged package versions
+          keep-n-most-recent: 5  # keep up to `n` tagged package versions for each of the packages
           account-type: org
           org-name: canonical
           token: ${{ secrets.GITHUB_TOKEN }}
