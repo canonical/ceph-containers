@@ -1,18 +1,11 @@
 name: ceph
-base: ubuntu@22.04
+base: ubuntu@24.04
 version: '0.1' # replaced by CI when building to publish.
 summary: Ubuntu based Ceph container image
 description: Rock for Containerised Ceph based on Ubuntu Ceph distribution. 
 license: Apache-2.0
 platforms:
     amd64:
-
-# Custom PPAs for Bug: https://bugs.launchpad.net/ubuntu/jammy/+source/ceph/+bug/2003704
-# This will be removed once the required packages are available from jammy repositories.
-package-repositories:
-  - type: apt
-    cloud: bobcat
-    priority: always
 
 services:
     ceph-container:
@@ -63,7 +56,7 @@ parts:
             - attr # utilities for manipulating filesystem extended attributes
             - targetcli-fb
             - uuid-runtime
-            - python-setuptools
+            - python3-setuptools
             - udev
             - dmsetup
             - ceph-volume
