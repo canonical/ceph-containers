@@ -57,6 +57,7 @@ jobs:
             type=raw,value=${{ steps.versioning.outputs.pkg_version }}
             type=raw,value=quincy,enable=${{ startsWith(steps.versioning.outputs.ceph_version, '17') }}
             type=raw,value=reef,enable=${{ startsWith(steps.versioning.outputs.ceph_version, '18') }}
+            type=raw,value=squid,enable=${{ startsWith(steps.versioning.outputs.ceph_version, '19') }}
 
       - name: Prepare Rock
         uses: canonical/craft-actions/rockcraft-pack@main
