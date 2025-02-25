@@ -14,6 +14,11 @@ services:
         summary: Unified Ceph container service started by the entrypoint
         startup: enabled
 
+package-repositories:
+  - type: apt
+    ppa: lmlogiudice/ceph-1921-noble
+    priority: always
+
 parts:
     # Workaround part which build nothing to fetch package info early in CI.
     pkg_info:
