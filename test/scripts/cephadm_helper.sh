@@ -103,7 +103,7 @@ function deploy_cephadm() {
 }
 
 function deploy_osd() {
-  sudo cephadm shell -- ceph orch apply osd --all-available-device
+  sudo cephadm shell -- ceph orch apply osd --all-available-devices
 }
 
 function get_num_objs() {
