@@ -35,6 +35,7 @@ parts:
             - ceph-mgr-diskprediction-local
             - ceph-mgr-k8sevents
             - ceph-mgr-rook
+            - ceph-prometheus-alerts
             - ceph-grafana-dashboards
             - radosgw
             - nfs-ganesha
