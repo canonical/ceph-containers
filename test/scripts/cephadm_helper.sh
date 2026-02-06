@@ -59,7 +59,7 @@ function install_apt() {
 }
 
 function bootstrap() {
-    local image="${1:missing}"
+    local image="${1:?missing}"
     local ip="${2:?missing}"
     sudo cephadm --image $image bootstrap --mon-ip $ip --single-host-defaults --skip-dashboard --skip-monitoring-stack
     df -H
@@ -117,7 +117,7 @@ function wait_num_objs() {
   
   for i in {1..15}; do
     num_objs=$( get_num_objs $what )
-    if [ $num_objs == $expect]; then
+    if [ "$num_objs" == "$expect" ]; then
       break
     else
       echo "$what $expect, got $num_objs..."
@@ -125,7 +125,7 @@ function wait_num_objs() {
     fi
   done
 
-  if [ $num_objs != $expect]; then
+  if [ "$num_objs" != "$expect" ]; then
     echo "Timedout waiting for $what to reach $expect count"
     exit -1 
   fi
@@ -136,7 +136,7 @@ function test_num_objs() {
     local expect=${2:?missing}
     
     num_objs=$( get_num_objs $what )
-    if [ $num_objs == $expect ]; then
+    if [ "$num_objs" == "$expect" ]; then
         echo "[OK] test_num_objs $what $expect"
     else
         echo "[FAIL] test_num_objs $what $expect, got $num_objs"

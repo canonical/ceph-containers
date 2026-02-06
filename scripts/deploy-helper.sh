@@ -22,7 +22,7 @@ function install_custom_runner_dependencies() {
   sudo apt-get -y update
   # for recent skopeo client
   sudo snap install rockcraft --classic
-  sudo pip install flake8 pep8-naming pylxd pyyaml argparse
+  pip install --user flake8 pep8-naming pylxd pyyaml argparse
   sudo snap install docker
   sleep 10
 }
@@ -44,7 +44,7 @@ function deploy_cluster_with_custom_image() {
   local yaml=${1:?missing}
   local img=${2:?missing}
   sed -i "s|#deviceFilter:|deviceFilter: ${BLOCK/\/dev\//}|g" $yaml
-  sed -i "s|image: quay.io/ceph/ceph:v17.*|image: $img|g" $yaml
+  sed -i "s|image: quay.io/ceph/ceph:v.*|image: $img|g" $yaml
   kubectl create -f $yaml
 }
 
@@ -66,7 +66,7 @@ function deploy_cluster() {
   kubectl create -f filesystem-mirror.yaml
   kubectl create -f nfs-test.yaml
   kubectl create -f subvolumegroup.yaml
-  deploy_operator_with_custom_image toolbox.yaml $img $operator_img
+  deploy_operator_with_custom_image toolbox.yaml $operator_img
 }
 
 
