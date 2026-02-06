@@ -7,6 +7,9 @@ license: Apache-2.0
 platforms:
     amd64:
 
+annotations:
+    ceph: "True"
+
 services:
     ceph-container:
         override: replace
