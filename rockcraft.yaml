@@ -43,18 +43,23 @@ parts:
             - ceph-mgr-rook
             - ceph-prometheus-alerts
             - ceph-grafana-dashboards
+            - ceph-immutable-object-cache
             - radosgw
             - nfs-ganesha
             - nfs-ganesha-ceph
             - nfs-ganesha-rados-grace
+            - nfs-ganesha-rgw
             - cephfs-mirror
             - ceph-iscsi
             - ceph-fuse
+            - python3-rgw
             - rbd-nbd
             - rbd-mirror
             # Utilities
             - gnupg 
             - ca-certificates
+            - curl
+            - jq
             - kmod
             - lvm2
             - gdisk
@@ -89,5 +94,4 @@ parts:
             logrotate.d/* : ${CRAFT_PART_INSTALL}/etc/logrotate.d/
             # Ceph defaults
             ceph.defaults : ${CRAFT_PART_INSTALL}/opt/ceph-container/etc/
-
 
