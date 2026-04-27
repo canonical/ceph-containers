@@ -1,0 +1,95 @@
+#!/usr/bin/env python3
+"""Add an OCI config label to an OCI archive."""
+
+import hashlib
+import json
+import os
+import shutil
+import sys
+import tarfile
+import tempfile
+from pathlib import Path
+
+
+def _sha256(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def _read_json(path: Path) -> dict:
+    with path.open(encoding="utf-8") as file:
+        return json.load(file)
+
+
+def _write_blob(blobs_dir: Path, payload: dict) -> tuple[str, int]:
+    data = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode()
+    digest = _sha256(data)
+    (blobs_dir / digest).write_bytes(data)
+    return digest, len(data)
+
+
+def _safe_extract(archive: Path, destination: Path) -> None:
+    with tarfile.open(archive) as tar:
+        for member in tar.getmembers():
+            member_path = destination / member.name
+            if member_path.resolve().is_relative_to(destination.resolve()):
+                continue
+            raise RuntimeError(f"Refusing to extract unsafe path: {member.name}")
+        tar.extractall(destination)
+
+
+def _repack(source: Path, destination: Path) -> None:
+    with tarfile.open(destination, "w") as tar:
+        for name in ("oci-layout", "index.json", "blobs"):
+            tar.add(source / name, arcname=name)
+
+
+def add_label(archive: Path, label: str, value: str) -> None:
+    with tempfile.TemporaryDirectory(prefix="oci-label-") as tmp:
+        workdir = Path(tmp)
+        _safe_extract(archive, workdir)
+
+        index_path = workdir / "index.json"
+        blobs_dir = workdir / "blobs" / "sha256"
+        index = _read_json(index_path)
+
+        for descriptor in index["manifests"]:
+            manifest_digest = descriptor["digest"].removeprefix("sha256:")
+            manifest_path = blobs_dir / manifest_digest
+            manifest = _read_json(manifest_path)
+
+            config_digest = manifest["config"]["digest"].removeprefix("sha256:")
+            config = _read_json(blobs_dir / config_digest)
+            config.setdefault("config", {}).setdefault("Labels", {})[label] = value
+
+            new_config_digest, new_config_size = _write_blob(blobs_dir, config)
+            manifest["config"]["digest"] = f"sha256:{new_config_digest}"
+            manifest["config"]["size"] = new_config_size
+
+            new_manifest_digest, new_manifest_size = _write_blob(blobs_dir, manifest)
+            descriptor["digest"] = f"sha256:{new_manifest_digest}"
+            descriptor["size"] = new_manifest_size
+
+        with index_path.open("w", encoding="utf-8") as file:
+            json.dump(index, file, separators=(",", ":"), sort_keys=True)
+
+        tmp_archive = archive.with_suffix(f"{archive.suffix}.tmp")
+        _repack(workdir, tmp_archive)
+        shutil.move(tmp_archive, archive)
+
+
+def main() -> int:
+    if len(sys.argv) != 4:
+        print("Usage: add-oci-label <oci-archive> <label> <value>", file=sys.stderr)
+        return 2
+
+    archive = Path(sys.argv[1])
+    if not archive.is_file():
+        print(f"OCI archive not found: {archive}", file=sys.stderr)
+        return 1
+
+    add_label(archive, sys.argv[2], sys.argv[3])
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
