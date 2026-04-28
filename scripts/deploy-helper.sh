@@ -42,7 +42,11 @@ function deploy_operator_with_custom_image() {
 function deploy_cluster_with_custom_image() {
   local yaml=${1:?missing}
   local img=${2:?missing}
-  sed -i "s|#deviceFilter:|deviceFilter: ${BLOCK/\/dev\//}|g" $yaml
+  local device_filter="${BLOCK/\/dev\//}"
+  device_filter="${device_filter//\\/\\\\}"
+  device_filter="${device_filter//&/\\&}"
+  device_filter="${device_filter//|/\\|}"
+  sed -i "s|#deviceFilter:|deviceFilter: ${device_filter}|g" $yaml
   sed -i "s|image: quay.io/ceph/ceph:v17.*|image: $img|g" $yaml
   kubectl create -f $yaml
 }
