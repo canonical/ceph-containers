@@ -34,11 +34,12 @@ function configure_insecure_registry() {
   ls
   rock_file=$(ls *.rock | head -1)
   docker run -d -p 5000:5000 --restart=always --name registry registry:2
-  rockcraft.skopeo --insecure-policy copy oci-archive:$rock_file docker-daemon:canonical/ceph:latest
-  docker image ls -a
-  docker image tag canonical/ceph:latest localhost:5000/canonical/ceph:latest
   sleep 10
-  docker push localhost:5000/canonical/ceph
+  rockcraft.skopeo --insecure-policy copy \
+    --dest-tls-verify=false \
+    oci-archive:$rock_file \
+    docker://localhost:5000/canonical/ceph:latest
+  rockcraft.skopeo inspect --tls-verify=false docker://localhost:5000/canonical/ceph:latest | jq -e '.Labels.ceph == "True"'
   sudo touch /etc/docker/daemon.json
   # dont need insecure registry since it's localhost.
   # echo $'[registries.insecure]\nregistries = ["localhost:5000"]' | sudo tee -a /etc/docker/daemon.json
