@@ -144,7 +144,8 @@ jobs:
               loop_devices+=("${loop_device##*/}")
             done
             printf 'ALLOW_LOOP_DEVICES=true\n' >> "$GITHUB_ENV"
-            printf 'BLOCK=/dev/(%s)\n' "$(IFS='|'; echo "${loop_devices[*]}")" >> "$GITHUB_ENV"
+            printf -v rook_devices '%s,' "${loop_devices[@]/#/\/dev\/}"
+            printf 'ROOK_CEPH_DEVICES=%s\n' "${rook_devices%,}" >> "$GITHUB_ENV"
             sudo lsblk
           fi
 
