@@ -29,6 +29,8 @@ jobs:
       - name: Prepare Rock
         uses: canonical/craft-actions/rockcraft-pack@main
         id: rockcraft
+      - name: Add cephadm image label
+        run: scripts/add-oci-label ${{ steps.rockcraft.outputs.rock }} ceph True
       - uses: actions/upload-artifact@v4
         with:
           name: rock
@@ -131,8 +133,21 @@ jobs:
       - name: use local disk and create partitions for osds
         run: |
           cd rook
-          ./tests/scripts/github-action-helper.sh use_local_disk
-          ./tests/scripts/github-action-helper.sh create_partitions_for_osds
+          if sudo lsblk --paths | awk '/14G/ || /64G/ { found=1 } END { exit !found }'; then
+            ./tests/scripts/github-action-helper.sh use_local_disk
+            ./tests/scripts/github-action-helper.sh create_partitions_for_osds
+          else
+            loop_devices=()
+            for i in 1 2; do
+              sudo dd if=/dev/zero of="$HOME/rook-osd-${i}.img" bs=1M seek=6144 count=0
+              loop_device="$(sudo losetup --find --show "$HOME/rook-osd-${i}.img")"
+              loop_devices+=("${loop_device##*/}")
+            done
+            printf 'ALLOW_LOOP_DEVICES=true\n' >> "$GITHUB_ENV"
+            printf -v rook_devices '%s,' "${loop_devices[@]/#/\/dev\/}"
+            printf 'ROOK_CEPH_DEVICES=%s\n' "${rook_devices%,}" >> "$GITHUB_ENV"
+            sudo lsblk
+          fi
 
       - name: Download artifact
         uses: actions/download-artifact@v4
@@ -141,18 +156,21 @@ jobs:
 
       - name: Load image and load to registry
         run: |
+          sudo apt-get update
+          sudo apt-get install -y skopeo
           ls
           rock_file=$(ls *.rock | head -1)
           docker run -d -p 5000:5000 --restart=always --name registry registry:2
-          rockcraft.skopeo --insecure-policy copy oci-archive:$rock_file docker-daemon:canonical/ceph:latest
-          docker image ls -a
-          docker image tag canonical/ceph:latest localhost:5000/canonical/ceph:latest
           sleep 10
-          docker push localhost:5000/canonical/ceph
+          skopeo --insecure-policy copy \
+            --dest-tls-verify=false \
+            oci-archive:$rock_file \
+            docker://localhost:5000/canonical/ceph:latest
+          skopeo inspect --tls-verify=false docker://localhost:5000/canonical/ceph:latest | jq -e '.Labels.ceph == "True"'
           echo $'[registries.insecure]\nregistries = ["localhost:5000"]' | sudo tee -a /etc/containers/registries.conf
 
       - name: deploy cluster
-        run: ./scripts/deploy-helper.sh deploy_cluster
+        run: ./scripts/deploy-helper.sh deploy_cluster rook/ceph:v1.12.0 localhost:5000/canonical/ceph:latest
 
       - name: wait for prepare pod
         run: cd rook ; tests/scripts/github-action-helper.sh wait_for_prepare_pod ; sleep 100

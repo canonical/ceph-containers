@@ -62,6 +62,8 @@ jobs:
       - name: Prepare Rock
         uses: canonical/craft-actions/rockcraft-pack@main
         id: rockcraft
+      - name: Add cephadm image label
+        run: scripts/add-oci-label ${{ steps.rockcraft.outputs.rock }} ceph True
 
       - name: Load to Docker daemon
         run: |
