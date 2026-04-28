@@ -133,8 +133,20 @@ jobs:
       - name: use local disk and create partitions for osds
         run: |
           cd rook
-          ./tests/scripts/github-action-helper.sh use_local_disk
-          ./tests/scripts/github-action-helper.sh create_partitions_for_osds
+          if sudo lsblk --paths | awk '/14G/ || /64G/ { found=1 } END { exit !found }'; then
+            ./tests/scripts/github-action-helper.sh use_local_disk
+            ./tests/scripts/github-action-helper.sh create_partitions_for_osds
+          else
+            loop_devices=()
+            for i in 1 2; do
+              sudo dd if=/dev/zero of="$HOME/rook-osd-${i}.img" bs=1M seek=6144 count=0
+              loop_device="$(sudo losetup --find --show "$HOME/rook-osd-${i}.img")"
+              loop_devices+=("${loop_device##*/}")
+            done
+            printf 'ALLOW_LOOP_DEVICES=true\n' >> "$GITHUB_ENV"
+            printf 'BLOCK=/dev/(%s)\n' "$(IFS='|'; echo "${loop_devices[*]}")" >> "$GITHUB_ENV"
+            sudo lsblk
+          fi
 
       - name: Download artifact
         uses: actions/download-artifact@v4
