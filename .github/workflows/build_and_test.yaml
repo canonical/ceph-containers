@@ -169,7 +169,7 @@ jobs:
           echo $'[registries.insecure]\nregistries = ["localhost:5000"]' | sudo tee -a /etc/containers/registries.conf
 
       - name: deploy cluster
-        run: ./scripts/deploy-helper.sh deploy_cluster
+        run: ./scripts/deploy-helper.sh deploy_cluster rook/ceph:v1.12.0 localhost:5000/canonical/ceph:latest
 
       - name: wait for prepare pod
         run: cd rook ; tests/scripts/github-action-helper.sh wait_for_prepare_pod ; sleep 100

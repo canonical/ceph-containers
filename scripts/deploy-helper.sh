@@ -50,8 +50,13 @@ function deploy_cluster_with_custom_image() {
 function deploy_cluster() {
   local operator_default="rook/ceph:v1.12.0"
   local operator_img=${1:-"$operator_default"}
-  local cluster_default="$( cat custom-image-spec )"
-  local cluster_img=${2:-"$cluster_default"}
+  local cluster_img
+
+  if [[ -n "${2:-}" ]]; then
+    cluster_img="$2"
+  else
+    cluster_img="$( cat custom-image-spec )"
+  fi
 
   cd rook/deploy/examples
   deploy_operator_with_custom_image operator.yaml $operator_img
@@ -65,7 +70,7 @@ function deploy_cluster() {
   kubectl create -f filesystem-mirror.yaml
   kubectl create -f nfs-test.yaml
   kubectl create -f subvolumegroup.yaml
-  deploy_operator_with_custom_image toolbox.yaml $img $operator_img
+  deploy_operator_with_custom_image toolbox.yaml $cluster_img
 }
 
 
