@@ -179,6 +179,12 @@ jobs:
           skopeo inspect --tls-verify=false docker://localhost:5000/canonical/ceph:latest | jq -e '.Labels.ceph == "True"'
           echo $'[registries.insecure]\nregistries = ["localhost:5000"]' | sudo tee -a /etc/containers/registries.conf
 
+      # Rook >=1.19 splits CSI into a standalone ceph-csi-operator. The
+      # rook-ceph-operator's reconcile blocks on csi.ceph.io/v1 CRDs
+      # (OperatorConfig, CephConnection); install them up front.
+      - name: install ceph-csi-operator CRDs
+        run: kubectl create -f rook/deploy/examples/csi-operator.yaml
+
       - name: deploy cluster
         run: ./scripts/deploy-helper.sh deploy_cluster rook/ceph:v1.19.5 localhost:5000/canonical/ceph:latest
 

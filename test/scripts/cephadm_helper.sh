@@ -60,7 +60,7 @@ function install_apt() {
 }
 
 function bootstrap() {
-    local image="${1:missing}"
+    local image="${1:?missing}"
     local ip="${2:?missing}"
     sudo cephadm --image $image bootstrap --mon-ip $ip --single-host-defaults --skip-dashboard --skip-monitoring-stack
     df -H
@@ -71,7 +71,7 @@ function get_ip() {
 }
 
 function setupLXDMachine() {
-    sudo lxc launch --vm ubuntu:24.04 cephadm0 -c limits.cpu=4 -c limits.memory=8GiB
+    sudo lxc launch --vm ubuntu:26.04 cephadm0 -c limits.cpu=4 -c limits.memory=8GiB
     sleep 30s
 
     sudo lxc file push ./test/scripts/cephadm_helper.sh cephadm0/root/
@@ -118,17 +118,17 @@ function wait_num_objs() {
   
   for i in {1..15}; do
     num_objs=$( get_num_objs $what )
-    if [ $num_objs == $expect]; then
+    if [ "$num_objs" == "$expect" ]; then
       break
     else
       echo "$what $expect, got $num_objs..."
-      sleep 30s 
+      sleep 30s
     fi
   done
 
-  if [ $num_objs != $expect]; then
+  if [ "$num_objs" != "$expect" ]; then
     echo "Timedout waiting for $what to reach $expect count"
-    exit -1 
+    exit 1
   fi
 }
 
@@ -143,7 +143,7 @@ function test_num_objs() {
         echo "[FAIL] test_num_objs $what $expect, got $num_objs"
         echo "Ceph status"
         sudo cephadm shell -- ceph status
-        exit -1
+        exit 1
     fi
 }
 
