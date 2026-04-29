@@ -2,7 +2,10 @@
 
 set -xeEo pipefail
 
-PACKAGES="cephadm openssh-server jq"
+# python3-ceph-common is a missing Depends in resolute's cephadm package:
+# cephadm 20.2.0 imports ceph.cephadm.images at startup but the package
+# only declares lvm2 + python3. Track via Launchpad bug.
+PACKAGES="cephadm openssh-server jq python3-ceph-common"
 
 function prep_docker() {
     # Run a local registry.
