@@ -22,8 +22,13 @@ set -xeEo pipefail
 function deploy_operator_with_custom_image() {
   local yaml=${1:?missing}
   local img=${2:?missing}
+  local escaped_img="${img//\\/\\\\}"
+  escaped_img="${escaped_img//&/\\&}"
+  escaped_img="${escaped_img//|/\\|}"
+
   sed -i 's/.*ROOK_CSI_ENABLE_NFS:.*/  ROOK_CSI_ENABLE_NFS: \"true\"/g' $yaml
-  sed -i "s|image: rook/ceph:.*|image: $img|g" $yaml
+  sed -i "s|image: rook/ceph:.*|image: $escaped_img|g" $yaml
+  sed -i "s|image: .*ceph/ceph:v[0-9].*|image: $escaped_img|g" $yaml
   if [[ "$ALLOW_LOOP_DEVICES" = "true" ]]; then
     sed -i "s|ROOK_CEPH_ALLOW_LOOP_DEVICES: \"false\"|ROOK_CEPH_ALLOW_LOOP_DEVICES: \"true\"|g" $yaml
   fi
@@ -34,8 +39,33 @@ function deploy_operator_with_custom_image() {
 function deploy_cluster_with_custom_image() {
   local yaml=${1:?missing}
   local img=${2:?missing}
-  sed -i "s|#deviceFilter:|deviceFilter: ${BLOCK/\/dev\//}|g" $yaml
-  sed -i "s|image: quay.io/ceph/ceph:v17.*|image: $img|g" $yaml
+  local escaped_img="${img//\\/\\\\}"
+  escaped_img="${escaped_img//&/\\&}"
+  escaped_img="${escaped_img//|/\\|}"
+
+  if [[ -n "${ROOK_CEPH_DEVICES:-}" ]]; then
+    awk -v devices="$ROOK_CEPH_DEVICES" '
+      /#deviceFilter:/ {
+        indent = substr($0, 1, index($0, "#") - 1)
+        print indent "devices:"
+        count = split(devices, device, ",")
+        for (i = 1; i <= count; i++) {
+          print indent "  - name: \"" device[i] "\""
+        }
+        next
+      }
+      { print }
+    ' "$yaml" > "$yaml.tmp"
+    mv "$yaml.tmp" "$yaml"
+  else
+    local device_filter="${BLOCK/\/dev\//}"
+    device_filter="${device_filter//\\/\\\\}"
+    device_filter="${device_filter//&/\\&}"
+    device_filter="${device_filter//|/\\|}"
+    sed -i "s|#deviceFilter:|deviceFilter: ${device_filter}|g" $yaml
+  fi
+
+  sed -i "s|image: .*ceph/ceph:v[0-9].*|image: $escaped_img|g" $yaml
   kubectl create -f $yaml
 }
 
@@ -57,7 +87,7 @@ function deploy_cluster() {
   kubectl create -f filesystem-mirror.yaml
   kubectl create -f nfs-test.yaml
   kubectl create -f subvolumegroup.yaml
-  deploy_operator_with_custom_image toolbox.yaml $img $operator_img
+  deploy_operator_with_custom_image toolbox.yaml $cluster_img
 }
 
 

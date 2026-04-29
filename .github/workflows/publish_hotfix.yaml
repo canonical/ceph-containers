@@ -36,7 +36,15 @@ jobs:
           sudo snap install lxd
           sudo snap install rockcraft --classic --edge
           sudo lxd init --auto
-          for ipt in iptables iptables-legacy ip6tables ip6tables-legacy; do sudo $ipt --flush; sudo $ipt --flush -t nat; sudo $ipt --delete-chain; sudo $ipt --delete-chain -t nat; sudo $ipt -P FORWARD ACCEPT; sudo $ipt -P INPUT ACCEPT; sudo $ipt -P OUTPUT ACCEPT; done
+          for ipt in iptables iptables-legacy ip6tables ip6tables-legacy; do
+            sudo $ipt --flush || true
+            sudo $ipt --flush -t nat || true
+            sudo $ipt --delete-chain || true
+            sudo $ipt --delete-chain -t nat || true
+            sudo $ipt -P FORWARD ACCEPT || true
+            sudo $ipt -P INPUT ACCEPT || true
+            sudo $ipt -P OUTPUT ACCEPT || true
+          done
           sudo systemctl reload snap.lxd.daemon
           sleep 5
 
@@ -83,4 +91,3 @@ jobs:
             docker push ghcr.io/canonical/ceph --all-tags
         env:
           TAGS: ${{ steps.meta.outputs.tags }}
-

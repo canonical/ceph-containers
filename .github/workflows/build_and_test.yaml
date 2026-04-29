@@ -61,9 +61,8 @@ jobs:
 
       - name: install dependencies
         run: |
-          sudo apt install skopeo
-          sudo python -m pip install --upgrade pip
-          sudo pip install flake8 pep8-naming pylxd pyyaml argparse
+          sudo apt-get update
+          sudo apt-get install -y skopeo python3-flake8 python3-pep8-naming python3-pylxd python3-yaml
 
       - name: Lint Check
         run: |
@@ -77,11 +76,11 @@ jobs:
           ls
           rock_file=$(ls *.rock | head -1)
           docker run -d -p 5000:5000 --restart=always --name registry registry:2
-          skopeo --insecure-policy copy oci-archive:$rock_file docker-daemon:canonical/ceph:latest
-          docker image ls -a
-          docker image tag canonical/ceph:latest localhost:5000/canonical/ceph:latest
           sleep 10
-          docker push localhost:5000/canonical/ceph
+          skopeo --insecure-policy copy \
+            --dest-tls-verify=false \
+            oci-archive:$rock_file \
+            docker://localhost:5000/canonical/ceph:latest
           echo $'[registries.insecure]\nregistries = ["localhost:5000"]' | sudo tee -a /etc/containers/registries.conf
 
       - name: Deploy Cephadm over Host
@@ -117,8 +116,8 @@ jobs:
 
       - name: install dependencies
         run: |
-          sudo python -m pip install --upgrade pip
-          sudo pip install flake8 pep8-naming pylxd pyyaml argparse
+          sudo apt-get update
+          sudo apt-get install -y skopeo python3-flake8 python3-pep8-naming python3-pylxd python3-yaml
 
       - name: Lint Check
         run: |
@@ -129,11 +128,11 @@ jobs:
           ls
           rock_file=$(ls *.rock | head -1)
           docker run -d -p 5000:5000 --restart=always --name registry registry:2
-          skopeo --insecure-policy copy oci-archive:$rock_file docker-daemon:canonical/ceph:latest
-          docker image ls -a
-          docker image tag canonical/ceph:latest localhost:5000/canonical/ceph:latest
           sleep 10
-          docker push localhost:5000/canonical/ceph
+          skopeo --insecure-policy copy \
+            --dest-tls-verify=false \
+            oci-archive:$rock_file \
+            docker://localhost:5000/canonical/ceph:latest
           echo $'[registries.insecure]\nregistries = ["localhost:5000"]' | sudo tee -a /etc/containers/registries.conf
 
       - name: install and init lxd snap
@@ -143,7 +142,15 @@ jobs:
 
       - name: clean iptables legacy
         run: |
-          for ipt in iptables iptables-legacy ip6tables ip6tables-legacy; do sudo $ipt --flush; sudo $ipt --flush -t nat; sudo $ipt --delete-chain; sudo $ipt --delete-chain -t nat; sudo $ipt -P FORWARD ACCEPT; sudo $ipt -P INPUT ACCEPT; sudo $ipt -P OUTPUT ACCEPT; done
+          for ipt in iptables iptables-legacy ip6tables ip6tables-legacy; do
+            sudo $ipt --flush || true
+            sudo $ipt --flush -t nat || true
+            sudo $ipt --delete-chain || true
+            sudo $ipt --delete-chain -t nat || true
+            sudo $ipt -P FORWARD ACCEPT || true
+            sudo $ipt -P INPUT ACCEPT || true
+            sudo $ipt -P OUTPUT ACCEPT || true
+          done
           sudo systemctl reload snap.lxd.daemon
           sleep 5
 
@@ -175,24 +182,39 @@ jobs:
       - name: use local disk and create partitions for osds
         run: |
           cd rook
-          ./tests/scripts/github-action-helper.sh use_local_disk
-          ./tests/scripts/github-action-helper.sh create_partitions_for_osds
+          if sudo lsblk --paths | awk '/14G/ || /64G/ { found=1 } END { exit !found }'; then
+            ./tests/scripts/github-action-helper.sh use_local_disk
+            ./tests/scripts/github-action-helper.sh create_partitions_for_osds
+          else
+            loop_devices=()
+            for i in 1 2; do
+              sudo dd if=/dev/zero of="$HOME/rook-osd-${i}.img" bs=1M seek=6144 count=0
+              loop_device="$(sudo losetup --find --show "$HOME/rook-osd-${i}.img")"
+              loop_devices+=("${loop_device##*/}")
+            done
+            printf 'ALLOW_LOOP_DEVICES=true\n' >> "$GITHUB_ENV"
+            printf -v rook_devices '%s,' "${loop_devices[@]/#/\/dev\/}"
+            printf 'ROOK_CEPH_DEVICES=%s\n' "${rook_devices%,}" >> "$GITHUB_ENV"
+            sudo lsblk
+          fi
 
       - name: Download artifact
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: rock
 
       - name: Load image and load to registry
         run: |
+          sudo apt-get update
+          sudo apt-get install -y skopeo
           ls
           rock_file=$(ls *.rock | head -1)
           docker run -d -p 5000:5000 --restart=always --name registry registry:2
-          skopeo --insecure-policy copy oci-archive:$rock_file docker-daemon:canonical/ceph:latest
-          docker image ls -a
-          docker image tag canonical/ceph:latest localhost:5000/canonical/ceph:latest
           sleep 10
-          docker push localhost:5000/canonical/ceph
+          skopeo --insecure-policy copy \
+            --dest-tls-verify=false \
+            oci-archive:$rock_file \
+            docker://localhost:5000/canonical/ceph:latest
           echo $'[registries.insecure]\nregistries = ["localhost:5000"]' | sudo tee -a /etc/containers/registries.conf
 
       - name: deploy cluster
