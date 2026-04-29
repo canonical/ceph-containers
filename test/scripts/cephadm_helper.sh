@@ -104,6 +104,26 @@ function deploy_cephadm() {
 }
 
 function deploy_osd() {
+  echo "=== Pre-OSD host device state ==="
+  lsblk
+  echo "=== Triggering cephadm device refresh ==="
+  sudo cephadm shell -- ceph orch device ls --refresh
+  # cephadm refreshes device inventory on a periodic timer; LXD-attached
+  # block volumes don't appear immediately. Poll for at least 3 available
+  # devices before issuing the OSD apply, to surface inventory issues
+  # earlier and avoid a silent timeout in wait_num_objs later.
+  local available=0
+  for i in {1..20}; do
+    sleep 15
+    echo "=== device inventory (attempt $i) ==="
+    sudo cephadm shell -- ceph orch device ls
+    available=$(sudo cephadm shell -- ceph orch device ls --format json-pretty 2>/dev/null \
+      | jq '[.. | objects | select(has("available")) | select(.available == true)] | length' 2>/dev/null || echo 0)
+    echo "available device count: ${available}"
+    if [ "${available}" -ge 3 ]; then
+      break
+    fi
+  done
   sudo cephadm shell -- ceph orch apply osd --all-available-devices
 }
 
