@@ -1,17 +1,13 @@
 name: ceph
-base: ubuntu@22.04
+base: ubuntu@26.04
+# Rockcraft edge currently needs the devel build-base for 26.04 projects.
+build-base: devel
 version: '0.1' # replaced by CI when building to publish.
 summary: Ubuntu based Ceph container image
 description: Rock for Containerised Ceph based on Ubuntu Ceph distribution. 
 license: Apache-2.0
 platforms:
     amd64:
-
-# Building squid from Jammy, as py03 is broken on py312 (noble). 
-package-repositories:
-  - type: apt
-    cloud: caracal 
-    priority: always
 
 services:
     ceph-container:
@@ -69,7 +65,7 @@ parts:
             - attr # utilities for manipulating filesystem extended attributes
             - targetcli-fb
             - uuid-runtime
-            - python-setuptools
+            - python3-setuptools
             - udev
             - dmsetup
             - ceph-volume
@@ -94,4 +90,3 @@ parts:
             logrotate.d/* : ${CRAFT_PART_INSTALL}/etc/logrotate.d/
             # Ceph defaults
             ceph.defaults : ${CRAFT_PART_INSTALL}/opt/ceph-container/etc/
-

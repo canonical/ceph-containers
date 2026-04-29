@@ -26,6 +26,8 @@ jobs:
         uses: canonical/setup-lxd@v0.1.1
         with:
           channel: 5.21/stable
+      - name: Install Rockcraft
+        run: sudo snap install rockcraft --classic --channel latest/edge
       - name: Prepare Rock
         uses: canonical/craft-actions/rockcraft-pack@main
         id: rockcraft
@@ -178,7 +180,7 @@ jobs:
           echo $'[registries.insecure]\nregistries = ["localhost:5000"]' | sudo tee -a /etc/containers/registries.conf
 
       - name: deploy cluster
-        run: ./scripts/deploy-helper.sh deploy_cluster rook/ceph:v1.12.0 localhost:5000/canonical/ceph:latest
+        run: ./scripts/deploy-helper.sh deploy_cluster rook/ceph:v1.19.5 localhost:5000/canonical/ceph:latest
 
       - name: wait for prepare pod
         run: cd rook ; tests/scripts/github-action-helper.sh wait_for_prepare_pod ; sleep 100
