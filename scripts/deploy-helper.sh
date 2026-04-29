@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
 # Copyright 2021 The Rook Authors. All rights reserved.
-# 
+#
 # Abridged and adapted by peter.sabaini@canonical.com
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -17,6 +17,14 @@
 # limitations under the License.
 
 set -xeEo pipefail
+
+function install_custom_runner_dependencies() {
+  sudo apt-get -y update
+  # for recent skopeo client
+  sudo snap install rockcraft --classic
+  sudo snap install docker
+  sleep 10
+}
 
 
 function deploy_operator_with_custom_image() {
@@ -72,8 +80,13 @@ function deploy_cluster_with_custom_image() {
 function deploy_cluster() {
   local operator_default="rook/ceph:v1.12.0"
   local operator_img=${1:-"$operator_default"}
-  local cluster_default="$( cat custom-image-spec )"
-  local cluster_img=${2:-"$cluster_default"}
+  local cluster_img
+
+  if [[ -n "${2:-}" ]]; then
+    cluster_img="$2"
+  else
+    cluster_img="$( cat custom-image-spec )"
+  fi
 
   cd rook/deploy/examples
   deploy_operator_with_custom_image operator.yaml $operator_img
