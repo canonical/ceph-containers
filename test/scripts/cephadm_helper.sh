@@ -2,10 +2,13 @@
 
 set -xeEo pipefail
 
-# python3-ceph-common is a missing Depends in resolute's cephadm package:
-# cephadm 20.2.0 imports ceph.cephadm.images at startup but the package
-# only declares lvm2 + python3. Track via Launchpad bug.
-PACKAGES="cephadm openssh-server jq python3-ceph-common"
+# Workarounds for missing Depends in resolute's cephadm package:
+#  - python3-ceph-common ships the ceph.cephadm.images module that
+#    cephadm 20.2.0 imports at startup
+#  - ceph-common creates the ceph daemon user (uid/gid 64045) that
+#    cephadm bootstrap chowns its runtime dirs to
+# Tracked via https://bugs.launchpad.net/ubuntu/+source/ceph/+bug/2150665.
+PACKAGES="cephadm openssh-server jq python3-ceph-common ceph-common"
 
 function prep_docker() {
     # Run a local registry.
