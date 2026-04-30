@@ -65,10 +65,45 @@ function install_apt() {
     DEBIAN_FRONTEND=noninteractive sudo apt install $PACKAGES -y 
 }
 
+function capture_bootstrap_diagnostics() {
+    # Diagnostic-only: dump mgr state and logs to help diagnose the
+    # PyO3 / "subinterpreters" failure when `mgr module enable cephadm`
+    # aborts during `cephadm bootstrap`. Does not attempt to fix anything.
+    echo "=== capture_bootstrap_diagnostics: ceph mgr module ls ==="
+    sudo cephadm shell -- ceph mgr module ls || echo "(ceph mgr module ls failed)"
+
+    echo "=== capture_bootstrap_diagnostics: cephadm ls ==="
+    sudo cephadm ls || echo "(cephadm ls failed)"
+
+    echo "=== capture_bootstrap_diagnostics: ceph-mgr daemon log files ==="
+    # /var/log/ceph/<fsid>/ceph-mgr.<host>.<rand>.log holds the Python
+    # traceback for the failed module load.
+    local mgr_logs
+    mgr_logs=$(sudo find /var/log/ceph -maxdepth 2 -type f -name 'ceph-mgr.*.log' 2>/dev/null || true)
+    if [ -n "$mgr_logs" ]; then
+        for f in $mgr_logs; do
+            echo "--- $f ---"
+            sudo cat "$f" || echo "(could not read $f)"
+        done
+    else
+        echo "(no /var/log/ceph/*/ceph-mgr.*.log files found)"
+    fi
+
+    echo "=== capture_bootstrap_diagnostics: journalctl ceph-*@mgr.* ==="
+    sudo journalctl --no-pager -n 200 -u 'ceph-*@mgr.*' || echo "(journalctl failed)"
+}
+
 function bootstrap() {
     local image="${1:?missing}"
     local ip="${2:?missing}"
-    sudo cephadm --image $image bootstrap --mon-ip $ip --single-host-defaults --skip-dashboard --skip-monitoring-stack
+    # Run cephadm bootstrap in a subshell so we can capture diagnostics on
+    # failure without losing the original non-zero exit code.
+    sudo cephadm --image "$image" bootstrap --mon-ip "$ip" --single-host-defaults --skip-dashboard --skip-monitoring-stack || {
+        rc=$?
+        echo "cephadm bootstrap failed with exit code $rc; capturing diagnostics" >&2
+        capture_bootstrap_diagnostics || true
+        exit "$rc"
+    }
     df -H
 }
 
