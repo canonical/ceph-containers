@@ -116,6 +116,14 @@ function deploy_osd() {
     sleep 15
     echo "=== device inventory (attempt $i) ==="
     sudo cephadm shell -- ceph orch device ls
+    if [ "$i" -eq 1 ]; then
+      echo "=== diagnostic: cephadm ceph-volume inventory ==="
+      sudo cephadm ceph-volume inventory || true
+      echo "=== diagnostic: ceph orch device ls --format json-pretty (raw) ==="
+      sudo cephadm shell -- ceph orch device ls --format json-pretty || true
+      echo "=== diagnostic: ceph orch host ls ==="
+      sudo cephadm shell -- ceph orch host ls || true
+    fi
     available=$(sudo cephadm shell -- ceph orch device ls --format json-pretty 2>/dev/null \
       | jq '[.. | objects | select(has("available")) | select(.available == true)] | length' 2>/dev/null || echo 0)
     echo "available device count: ${available}"
@@ -123,6 +131,10 @@ function deploy_osd() {
       break
     fi
   done
+  if [ "${available}" -lt 3 ]; then
+    echo "deploy_osd: timed out waiting for >=3 available devices (last seen: ${available})" >&2
+    exit 1
+  fi
   sudo cephadm shell -- ceph orch apply osd --all-available-devices
 }
 
