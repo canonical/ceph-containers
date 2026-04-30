@@ -124,6 +124,10 @@ function deploy_osd() {
       break
     fi
   done
+  if [ "${available}" -lt 3 ]; then
+    echo "deploy_osd: timed out waiting for >=3 available devices (last seen: ${available})" >&2
+    exit 1
+  fi
   sudo cephadm shell -- ceph orch apply osd --all-available-devices
 }
 
