@@ -71,6 +71,7 @@ parts:
             - ceph-volume
             - python3-asyncssh
             - python3-natsort
+            - python3-packaging
             - sharutils
             - lsof
             - etcd-client
