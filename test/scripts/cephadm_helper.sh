@@ -105,25 +105,18 @@ function deploy_cephadm() {
 function deploy_osd() {
   echo "=== Pre-OSD host device state ==="
   lsblk
-  echo "=== Triggering cephadm device refresh ==="
-  sudo cephadm shell -- ceph orch device ls --refresh
-  # cephadm refreshes device inventory on a periodic timer; LXD-attached
-  # block volumes don't appear immediately. Poll for at least 3 available
-  # devices before issuing the OSD apply, to surface inventory issues
-  # earlier and avoid a silent timeout in wait_num_objs later.
+  # The Quincy orchestrator's per-host device cache is populated
+  # asynchronously and a single up-front --refresh does not block on
+  # completion. ceph-volume sees the LXD-attached block volumes
+  # immediately, but `ceph orch device ls` returns an empty list until
+  # the mgr/cephadm module pulls them in. Re-issue --refresh on each
+  # poll iteration to nudge the cache.
   local available=0
   for i in {1..20}; do
-    sleep 15
     echo "=== device inventory (attempt $i) ==="
+    sudo cephadm shell -- ceph orch device ls --refresh
+    sleep 15
     sudo cephadm shell -- ceph orch device ls
-    if [ "$i" -eq 1 ]; then
-      echo "=== diagnostic: cephadm ceph-volume inventory ==="
-      sudo cephadm ceph-volume inventory || true
-      echo "=== diagnostic: ceph orch device ls --format json-pretty (raw) ==="
-      sudo cephadm shell -- ceph orch device ls --format json-pretty || true
-      echo "=== diagnostic: ceph orch host ls ==="
-      sudo cephadm shell -- ceph orch host ls || true
-    fi
     available=$(sudo cephadm shell -- ceph orch device ls --format json-pretty 2>/dev/null \
       | jq '[.. | objects | select(has("available")) | select(.available == true)] | length' 2>/dev/null || echo 0)
     echo "available device count: ${available}"
