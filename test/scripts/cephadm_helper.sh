@@ -60,7 +60,7 @@ function install_apt() {
 }
 
 function bootstrap() {
-    local image="${1:missing}"
+    local image="${1:?missing}"
     local ip="${2:?missing}"
     sudo cephadm --image $image bootstrap --mon-ip $ip --single-host-defaults --skip-dashboard --skip-monitoring-stack
     df -H
@@ -104,6 +104,30 @@ function deploy_cephadm() {
 }
 
 function deploy_osd() {
+  echo "=== Pre-OSD host device state ==="
+  lsblk
+  echo "=== Triggering cephadm device refresh ==="
+  sudo cephadm shell -- ceph orch device ls --refresh
+  # cephadm refreshes device inventory on a periodic timer; LXD-attached
+  # block volumes don't appear immediately. Poll for at least 3 available
+  # devices before issuing the OSD apply, to surface inventory issues
+  # earlier and avoid a silent timeout in wait_num_objs later.
+  local available=0
+  for i in {1..20}; do
+    sleep 15
+    echo "=== device inventory (attempt $i) ==="
+    sudo cephadm shell -- ceph orch device ls
+    available=$(sudo cephadm shell -- ceph orch device ls --format json-pretty 2>/dev/null \
+      | jq '[.. | objects | select(has("available")) | select(.available == true)] | length' 2>/dev/null || echo 0)
+    echo "available device count: ${available}"
+    if [ "${available}" -ge 3 ]; then
+      break
+    fi
+  done
+  if [ "${available}" -lt 3 ]; then
+    echo "deploy_osd: timed out waiting for >=3 available devices (last seen: ${available})" >&2
+    exit 1
+  fi
   sudo cephadm shell -- ceph orch apply osd --all-available-devices
 }
 
@@ -118,17 +142,17 @@ function wait_num_objs() {
   
   for i in {1..15}; do
     num_objs=$( get_num_objs $what )
-    if [ $num_objs == $expect]; then
+    if [ "$num_objs" == "$expect" ]; then
       break
     else
       echo "$what $expect, got $num_objs..."
-      sleep 30s 
+      sleep 30s
     fi
   done
 
-  if [ $num_objs != $expect]; then
+  if [ "$num_objs" != "$expect" ]; then
     echo "Timedout waiting for $what to reach $expect count"
-    exit -1 
+    exit 1
   fi
 }
 
@@ -143,7 +167,7 @@ function test_num_objs() {
         echo "[FAIL] test_num_objs $what $expect, got $num_objs"
         echo "Ceph status"
         sudo cephadm shell -- ceph status
-        exit -1
+        exit 1
     fi
 }
 
