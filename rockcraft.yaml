@@ -37,18 +37,23 @@ parts:
             - ceph-mgr-rook
             - ceph-prometheus-alerts
             - ceph-grafana-dashboards
+            - ceph-immutable-object-cache
             - radosgw
             - nfs-ganesha
             - nfs-ganesha-ceph
+            - nfs-ganesha-rados-grace
+            - nfs-ganesha-rgw
             - cephfs-mirror
             - ceph-iscsi
             - ceph-fuse
+            - python3-rgw
             - rbd-nbd
             - rbd-mirror
             # Utilities
             - gnupg 
             - curl 
             - ca-certificates
+            - jq
             - kmod
             - lvm2
             - gdisk
@@ -66,6 +71,7 @@ parts:
             - ceph-volume
             - python3-asyncssh
             - python3-natsort
+            - python3-packaging
             - sharutils
             - lsof
             - etcd-client
@@ -113,5 +119,4 @@ parts:
             ceph.defaults : ${CRAFT_PART_INSTALL}/opt/ceph-container/etc/
             # s3cfg
             s3cfg : ${CRAFT_PART_INSTALL}/root/.s3cfg
-
 

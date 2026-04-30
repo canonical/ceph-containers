@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
 # Copyright 2021 The Rook Authors. All rights reserved.
-# 
+#
 # Abridged and adapted by peter.sabaini@canonical.com
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -18,12 +18,25 @@
 
 set -xeEo pipefail
 
+function install_custom_runner_dependencies() {
+  sudo apt-get -y update
+  # for recent skopeo client
+  sudo snap install rockcraft --classic
+  sudo snap install docker
+  sleep 10
+}
+
 
 function deploy_operator_with_custom_image() {
   local yaml=${1:?missing}
   local img=${2:?missing}
+  local escaped_img="${img//\\/\\\\}"
+  escaped_img="${escaped_img//&/\\&}"
+  escaped_img="${escaped_img//|/\\|}"
+
   sed -i 's/.*ROOK_CSI_ENABLE_NFS:.*/  ROOK_CSI_ENABLE_NFS: \"true\"/g' $yaml
-  sed -i "s|image: rook/ceph:.*|image: $img|g" $yaml
+  sed -i "s|image: rook/ceph:.*|image: $escaped_img|g" $yaml
+  sed -i "s|image: .*ceph/ceph:v[0-9].*|image: $escaped_img|g" $yaml
   if [[ "$ALLOW_LOOP_DEVICES" = "true" ]]; then
     sed -i "s|ROOK_CEPH_ALLOW_LOOP_DEVICES: \"false\"|ROOK_CEPH_ALLOW_LOOP_DEVICES: \"true\"|g" $yaml
   fi
@@ -34,16 +47,46 @@ function deploy_operator_with_custom_image() {
 function deploy_cluster_with_custom_image() {
   local yaml=${1:?missing}
   local img=${2:?missing}
-  sed -i "s|#deviceFilter:|deviceFilter: ${BLOCK/\/dev\//}|g" $yaml
-  sed -i "s|image: quay.io/ceph/ceph:v17.*|image: $img|g" $yaml
+  local escaped_img="${img//\\/\\\\}"
+  escaped_img="${escaped_img//&/\\&}"
+  escaped_img="${escaped_img//|/\\|}"
+
+  if [[ -n "${ROOK_CEPH_DEVICES:-}" ]]; then
+    awk -v devices="$ROOK_CEPH_DEVICES" '
+      /#deviceFilter:/ {
+        indent = substr($0, 1, index($0, "#") - 1)
+        print indent "devices:"
+        count = split(devices, device, ",")
+        for (i = 1; i <= count; i++) {
+          print indent "  - name: \"" device[i] "\""
+        }
+        next
+      }
+      { print }
+    ' "$yaml" > "$yaml.tmp"
+    mv "$yaml.tmp" "$yaml"
+  else
+    local device_filter="${BLOCK/\/dev\//}"
+    device_filter="${device_filter//\\/\\\\}"
+    device_filter="${device_filter//&/\\&}"
+    device_filter="${device_filter//|/\\|}"
+    sed -i "s|#deviceFilter:|deviceFilter: ${device_filter}|g" $yaml
+  fi
+
+  sed -i "s|image: .*ceph/ceph:v[0-9].*|image: $escaped_img|g" $yaml
   kubectl create -f $yaml
 }
 
 function deploy_cluster() {
   local operator_default="rook/ceph:v1.12.0"
   local operator_img=${1:-"$operator_default"}
-  local cluster_default="$( cat custom-image-spec )"
-  local cluster_img=${2:-"$cluster_default"}
+  local cluster_img
+
+  if [[ -n "${2:-}" ]]; then
+    cluster_img="$2"
+  else
+    cluster_img="$( cat custom-image-spec )"
+  fi
 
   cd rook/deploy/examples
   deploy_operator_with_custom_image operator.yaml $operator_img
@@ -57,7 +100,7 @@ function deploy_cluster() {
   kubectl create -f filesystem-mirror.yaml
   kubectl create -f nfs-test.yaml
   kubectl create -f subvolumegroup.yaml
-  deploy_operator_with_custom_image toolbox.yaml $img $operator_img
+  deploy_operator_with_custom_image toolbox.yaml $cluster_img
 }
 
 
