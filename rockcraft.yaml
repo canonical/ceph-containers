@@ -82,6 +82,13 @@ parts:
             - sharutils
             - lsof
             - python3-onelogin-saml2
+        overlay-script: |
+            set -eu
+            cd "${CRAFT_OVERLAY}"
+            for p in "${CRAFT_PROJECT_DIR}"/patches/*.patch; do
+              echo "Applying ${p}"
+              patch -p1 < "${p}"
+            done
 
     kubectl:
         plugin: go
