@@ -16,13 +16,7 @@ platforms:
 package-repositories:
   - type: apt
     ppa: lmlogiudice/ceph-tentacle-noble
-    # Pin the PPA's signing key so craft-archives skips the launchpadlib
-    # +archive lookup. api.launchpad.net intermittently returns HTTP 503
-    # / hangs on that endpoint with no retry, wedging build-rock for
-    # ~19 minutes before failing. Pinning the fingerprint lets the build
-    # proceed when only Launchpad's web frontend is degraded.
-    # Key owner: "Launchpad PPA for Luciano Lo Giudice".
-    key-id: ADB101EC932F9AEA3800EF9E8871F59B071C7CC2
+    priority: always
 
 services:
     ceph-container:
@@ -56,10 +50,6 @@ parts:
             - ceph-grafana-dashboards
             - ceph-immutable-object-cache
             - radosgw
-            - nfs-ganesha
-            - nfs-ganesha-ceph
-            - nfs-ganesha-rados-grace
-            - nfs-ganesha-rgw
             - cephfs-mirror
             - ceph-iscsi
             - ceph-fuse
@@ -94,8 +84,31 @@ parts:
             cd "${CRAFT_OVERLAY}"
             for p in "${CRAFT_PROJECT_DIR}"/patches/*.patch; do
               echo "Applying ${p}"
-              patch -p1 < "${p}"
+              # --forward + dry-run check makes incremental rebuilds safe:
+              # if the patch is already applied (overlay cache survived
+              # from a prior pack), skip it instead of failing.
+              if patch -p1 --forward --dry-run --silent < "${p}" >/dev/null 2>&1; then
+                patch -p1 --forward < "${p}"
+              else
+                echo "Patch ${p} appears already applied; skipping"
+              fi
             done
+
+    nfs-ganesha:
+        plugin: nil
+        after: [ceph]
+        overlay-packages:
+            - nfs-ganesha
+            - nfs-ganesha-ceph
+            - nfs-ganesha-rados-grace
+            - nfs-ganesha-rgw
+        overlay-script: |
+            # Ubuntu's nfs-ganesha package relies on systemd's
+            # RuntimeDirectory=ganesha to create /run/ganesha at service
+            # start. Rook execs ganesha.nfsd directly inside the container
+            # without systemd, so the dir never exists and ganesha.nfsd
+            # FATALs writing its pidfile. Pre-create it here.
+            install -d -m 0755 "${CRAFT_OVERLAY}/run/ganesha"
 
     kubectl:
         plugin: go
