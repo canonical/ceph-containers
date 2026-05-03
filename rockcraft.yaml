@@ -16,6 +16,13 @@ platforms:
 package-repositories:
   - type: apt
     ppa: lmlogiudice/ceph-tentacle-noble
+    # Pin the PPA's signing key so craft-archives skips the launchpadlib
+    # +archive lookup. api.launchpad.net intermittently returns HTTP 503
+    # / hangs on that endpoint with no retry, wedging build-rock for
+    # ~19 minutes before failing. Pinning the fingerprint lets the build
+    # proceed when only Launchpad's web frontend is degraded.
+    # Key owner: "Launchpad PPA for Luciano Lo Giudice".
+    key-id: ADB101EC932F9AEA3800EF9E8871F59B071C7CC2
 
 services:
     ceph-container:
