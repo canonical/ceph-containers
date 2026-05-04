@@ -191,8 +191,17 @@ jobs:
       - name: wait for prepare pod
         run: cd rook ; tests/scripts/github-action-helper.sh wait_for_prepare_pod ; sleep 100
 
+      # Rook v1.19 changed validate_cluster.sh's rgw probe to select pods
+      # by `rgw=$OBJECT_STORE_NAME` and hardcodes `store-a` when called
+      # with daemon=all. We deploy object-test.yaml whose CephObjectStore
+      # is named `my-store`, so the default selector misses and the rgw
+      # wait times out. Validate non-rgw daemons via the helper, then
+      # wait on the rgw deployment directly using its app= label.
       - name: wait for ceph to be ready
-        run: cd rook ; tests/scripts/github-action-helper.sh wait_for_ceph_to_be_ready all 2
+        run: |
+          cd rook
+          tests/scripts/github-action-helper.sh wait_for_ceph_to_be_ready 'osd,mds,rbd_mirror,fs_mirror,nfs' 2
+          kubectl -n rook-ceph rollout status deployment/rook-ceph-rgw-my-store-a --timeout=360s
 
       - name: wait for ceph mgr to be ready
         run: |
