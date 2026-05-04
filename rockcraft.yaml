@@ -1,8 +1,8 @@
 name: ceph
 base: ubuntu@22.04
-version: '0.1' # replaced by CI when building to publish.
+adopt-info: pkg_info
 summary: Ubuntu based Ceph container image
-description: Rock for Containerised Ceph based on Ubuntu Ceph distribution. 
+description: Rock for Containerised Ceph based on Ubuntu Ceph distribution.
 license: Apache-2.0
 platforms:
     amd64:
@@ -21,11 +21,15 @@ services:
         startup: enabled
 
 parts:
-    # Workaround part which build nothing to fetch package info early in CI.
+    # Sets the rock version to the full ceph-common apt package version
+    # (with `~` sanitized for OCI tag compatibility). Downstream workflows
+    # derive the upstream Ceph version by stripping the Ubuntu revision.
     pkg_info:
         plugin: nil
         override-pull: |
           apt info ceph-common
+          PKG_VER=$(apt-cache show ceph-common | awk '/^Version:/ {print $2; exit}' | tr '~' '_')
+          craftctl set version="$PKG_VER"
 
     ceph:
         plugin: nil
