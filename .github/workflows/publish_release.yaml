@@ -25,7 +25,7 @@ jobs:
       - name: Install deps and clean legacy rules.
         run: |
           sudo snap install docker
-          sudo snap install rockcraft --classic --channel latest/stable
+          sudo snap install rockcraft --classic --channel latest/edge
           for ipt in iptables iptables-legacy ip6tables ip6tables-legacy; do
             sudo $ipt --flush || true
             sudo $ipt --flush -t nat || true
@@ -66,6 +66,7 @@ jobs:
             type=raw,value=quincy,enable=${{ startsWith(steps.versioning.outputs.ceph_version, '17') }}
             type=raw,value=reef,enable=${{ startsWith(steps.versioning.outputs.ceph_version, '18') }}
             type=raw,value=squid,enable=${{ startsWith(steps.versioning.outputs.ceph_version, '19') }}
+            type=raw,value=tentacle,enable=${{ startsWith(steps.versioning.outputs.ceph_version, '20') }}
 
       - name: Prepare Rock
         uses: canonical/craft-actions/rockcraft-pack@main

@@ -1,16 +1,21 @@
 name: ceph
-base: ubuntu@22.04
+base: ubuntu@24.04
 version: '0.1' # replaced by CI when building to publish.
 summary: Ubuntu based Ceph container image
-description: Rock for Containerised Ceph based on Ubuntu Ceph distribution. 
+description: Rock for Containerised Ceph based on Ubuntu Ceph distribution.
 license: Apache-2.0
 platforms:
     amd64:
 
-# Building squid from Jammy, as py03 is broken on py312 (noble). 
+# Tentacle (20.x) is not in Noble's main archive yet. Pull from the same
+# PPA that MicroCeph uses on core24 — it ships 20.2.0 against Noble's
+# stable Python (3.12) and python3-cryptography (~41.x), which avoids the
+# PyO3 / subinterpreter ImportError seen with Resolute's 26.04 + 3.14 +
+# python3-cryptography 46.x stack. Tracked at:
+#   https://bugs.launchpad.net/bugs/2150762
 package-repositories:
   - type: apt
-    cloud: caracal 
+    ppa: lmlogiudice/ceph-tentacle-noble
     priority: always
 
 services:
@@ -45,10 +50,6 @@ parts:
             - ceph-grafana-dashboards
             - ceph-immutable-object-cache
             - radosgw
-            - nfs-ganesha
-            - nfs-ganesha-ceph
-            - nfs-ganesha-rados-grace
-            - nfs-ganesha-rgw
             - cephfs-mirror
             - ceph-iscsi
             - ceph-fuse
@@ -69,7 +70,7 @@ parts:
             - attr # utilities for manipulating filesystem extended attributes
             - targetcli-fb
             - uuid-runtime
-            - python-setuptools
+            - python3-setuptools
             - udev
             - dmsetup
             - ceph-volume
@@ -78,6 +79,36 @@ parts:
             - sharutils
             - lsof
             - python3-onelogin-saml2
+        overlay-script: |
+            set -eu
+            cd "${CRAFT_OVERLAY}"
+            for p in "${CRAFT_PROJECT_DIR}"/patches/*.patch; do
+              echo "Applying ${p}"
+              # --forward + dry-run check makes incremental rebuilds safe:
+              # if the patch is already applied (overlay cache survived
+              # from a prior pack), skip it instead of failing.
+              if patch -p1 --forward --dry-run --silent < "${p}" >/dev/null 2>&1; then
+                patch -p1 --forward < "${p}"
+              else
+                echo "Patch ${p} appears already applied; skipping"
+              fi
+            done
+
+    nfs-ganesha:
+        plugin: nil
+        after: [ceph]
+        overlay-packages:
+            - nfs-ganesha
+            - nfs-ganesha-ceph
+            - nfs-ganesha-rados-grace
+            - nfs-ganesha-rgw
+        overlay-script: |
+            # Ubuntu's nfs-ganesha package relies on systemd's
+            # RuntimeDirectory=ganesha to create /run/ganesha at service
+            # start. Rook execs ganesha.nfsd directly inside the container
+            # without systemd, so the dir never exists and ganesha.nfsd
+            # FATALs writing its pidfile. Pre-create it here.
+            install -d -m 0755 "${CRAFT_OVERLAY}/run/ganesha"
 
     kubectl:
         plugin: go
@@ -94,4 +125,3 @@ parts:
             logrotate.d/* : ${CRAFT_PART_INSTALL}/etc/logrotate.d/
             # Ceph defaults
             ceph.defaults : ${CRAFT_PART_INSTALL}/opt/ceph-container/etc/
-

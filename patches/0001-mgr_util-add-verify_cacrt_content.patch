@@ -1,0 +1,56 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Utkarsh Bhatt <utkarsh.bhatt@canonical.com>
+Date: Fri, 1 May 2026 00:00:00 +0000
+Subject: [PATCH] mgr/mgr_util: add missing verify_cacrt_content
+
+The ceph-mgr 20.2.0 build in ppa:lmlogiudice/ceph-tentacle-noble
+ships a mgr_util.py without verify_cacrt_content, while the sibling
+ceph-mgr-cephadm 20.2.0 (same PPA, same version) imports it via
+cephadm/cert_mgr.py. Loading the cephadm mgr module therefore fails
+with ImportError on every bootstrap.
+
+Restore the function verbatim from upstream Ceph v20.2.0
+(src/pybind/mgr/mgr_util.py).
+
+Signed-off-by: Utkarsh Bhatt <utkarsh.bhatt@canonical.com>
+---
+ usr/share/ceph/mgr/mgr_util.py | 24 ++++++++++++++++++++++++
+ 1 file changed, 24 insertions(+)
+
+diff --git a/usr/share/ceph/mgr/mgr_util.py b/usr/share/ceph/mgr/mgr_util.py
+--- a/usr/share/ceph/mgr/mgr_util.py
++++ b/usr/share/ceph/mgr/mgr_util.py
+@@ -650,6 +650,30 @@
+         raise ServerConfigException(f'Invalid certificate: {err}')
+
+
++def verify_cacrt_content(crt):
++    # type: (str) -> int
++    from OpenSSL import crypto
++    try:
++        crt_buffer = crt.encode("ascii") if isinstance(crt, str) else crt
++        x509 = crypto.load_certificate(crypto.FILETYPE_PEM, crt_buffer)
++        no_after = x509.get_notAfter()
++        if not no_after:
++            raise ServerConfigException("Certificate does not have an expiration date.")
++
++        end_date = datetime.datetime.strptime(no_after.decode('ascii'), '%Y%m%d%H%M%SZ')
++        if x509.has_expired():
++            org, cn = get_cert_issuer_info(crt)
++            msg = f'Certificate issued by "{org}/{cn}" expired on {end_date}'
++            logger.warning(msg)
++            raise ServerConfigException(msg)
++
++        # Certificate still valid, calculate and return days until expiration
++        return (end_date - datetime.datetime.utcnow()).days
++
++    except (ValueError, crypto.Error) as e:
++        raise ServerConfigException(f'Invalid certificate: {e}')
++
++
+ def verify_cacrt(cert_fname):
+     # type: (str) -> None
+     """Basic validation of a ca cert"""
+--
+2.43.0
+

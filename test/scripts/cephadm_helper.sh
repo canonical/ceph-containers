@@ -2,7 +2,13 @@
 
 set -xeEo pipefail
 
-PACKAGES="cephadm openssh-server jq"
+# Workarounds for missing Depends in resolute's cephadm package:
+#  - python3-ceph-common ships the ceph.cephadm.images module that
+#    cephadm 20.2.0 imports at startup
+#  - ceph-common creates the ceph daemon user (uid/gid 64045) that
+#    cephadm bootstrap chowns its runtime dirs to
+# Tracked via https://bugs.launchpad.net/ubuntu/+source/ceph/+bug/2150665.
+PACKAGES="cephadm openssh-server jq python3-ceph-common ceph-common"
 
 function prep_docker() {
     # Run a local registry.
@@ -59,10 +65,45 @@ function install_apt() {
     DEBIAN_FRONTEND=noninteractive sudo apt install $PACKAGES -y 
 }
 
+function capture_bootstrap_diagnostics() {
+    # Diagnostic-only: dump mgr state and logs to help diagnose the
+    # PyO3 / "subinterpreters" failure when `mgr module enable cephadm`
+    # aborts during `cephadm bootstrap`. Does not attempt to fix anything.
+    echo "=== capture_bootstrap_diagnostics: ceph mgr module ls ==="
+    sudo cephadm shell -- ceph mgr module ls || echo "(ceph mgr module ls failed)"
+
+    echo "=== capture_bootstrap_diagnostics: cephadm ls ==="
+    sudo cephadm ls || echo "(cephadm ls failed)"
+
+    echo "=== capture_bootstrap_diagnostics: ceph-mgr daemon log files ==="
+    # /var/log/ceph/<fsid>/ceph-mgr.<host>.<rand>.log holds the Python
+    # traceback for the failed module load.
+    local mgr_logs
+    mgr_logs=$(sudo find /var/log/ceph -maxdepth 2 -type f -name 'ceph-mgr.*.log' 2>/dev/null || true)
+    if [ -n "$mgr_logs" ]; then
+        for f in $mgr_logs; do
+            echo "--- $f ---"
+            sudo cat "$f" || echo "(could not read $f)"
+        done
+    else
+        echo "(no /var/log/ceph/*/ceph-mgr.*.log files found)"
+    fi
+
+    echo "=== capture_bootstrap_diagnostics: journalctl ceph-*@mgr.* ==="
+    sudo journalctl --no-pager -n 200 -u 'ceph-*@mgr.*' || echo "(journalctl failed)"
+}
+
 function bootstrap() {
-    local image="${1:missing}"
+    local image="${1:?missing}"
     local ip="${2:?missing}"
-    sudo cephadm --image $image bootstrap --mon-ip $ip --single-host-defaults --skip-dashboard --skip-monitoring-stack
+    # Run cephadm bootstrap in a subshell so we can capture diagnostics on
+    # failure without losing the original non-zero exit code.
+    sudo cephadm --image "$image" bootstrap --mon-ip "$ip" --single-host-defaults --skip-dashboard --skip-monitoring-stack || {
+        rc=$?
+        echo "cephadm bootstrap failed with exit code $rc; capturing diagnostics" >&2
+        capture_bootstrap_diagnostics || true
+        exit "$rc"
+    }
     df -H
 }
 
@@ -71,7 +112,7 @@ function get_ip() {
 }
 
 function setupLXDMachine() {
-    sudo lxc launch --vm ubuntu:24.04 cephadm0 -c limits.cpu=4 -c limits.memory=8GiB
+    sudo lxc launch --vm ubuntu:26.04 cephadm0 -c limits.cpu=4 -c limits.memory=8GiB
     sleep 30s
 
     sudo lxc file push ./test/scripts/cephadm_helper.sh cephadm0/root/
@@ -118,17 +159,17 @@ function wait_num_objs() {
   
   for i in {1..15}; do
     num_objs=$( get_num_objs $what )
-    if [ $num_objs == $expect]; then
+    if [ "$num_objs" == "$expect" ]; then
       break
     else
       echo "$what $expect, got $num_objs..."
-      sleep 30s 
+      sleep 30s
     fi
   done
 
-  if [ $num_objs != $expect]; then
+  if [ "$num_objs" != "$expect" ]; then
     echo "Timedout waiting for $what to reach $expect count"
-    exit -1 
+    exit 1
   fi
 }
 
@@ -143,7 +184,7 @@ function test_num_objs() {
         echo "[FAIL] test_num_objs $what $expect, got $num_objs"
         echo "Ceph status"
         sudo cephadm shell -- ceph status
-        exit -1
+        exit 1
     fi
 }
 

@@ -26,6 +26,8 @@ jobs:
         uses: canonical/setup-lxd@v0.1.1
         with:
           channel: 5.21/stable
+      - name: Install Rockcraft
+        run: sudo snap install rockcraft --classic --channel latest/edge
       - name: Prepare Rock
         uses: canonical/craft-actions/rockcraft-pack@main
         id: rockcraft
@@ -177,14 +179,29 @@ jobs:
           skopeo inspect --tls-verify=false docker://localhost:5000/canonical/ceph:latest | jq -e '.Labels.ceph == "True"'
           echo $'[registries.insecure]\nregistries = ["localhost:5000"]' | sudo tee -a /etc/containers/registries.conf
 
+      # Rook >=1.19 splits CSI into a standalone ceph-csi-operator. The
+      # rook-ceph-operator's reconcile blocks on csi.ceph.io/v1 CRDs
+      # (OperatorConfig, CephConnection); install them up front.
+      - name: install ceph-csi-operator CRDs
+        run: kubectl create -f rook/deploy/examples/csi-operator.yaml
+
       - name: deploy cluster
-        run: ./scripts/deploy-helper.sh deploy_cluster rook/ceph:v1.12.0 localhost:5000/canonical/ceph:latest
+        run: ./scripts/deploy-helper.sh deploy_cluster rook/ceph:v1.19.5 localhost:5000/canonical/ceph:latest
 
       - name: wait for prepare pod
         run: cd rook ; tests/scripts/github-action-helper.sh wait_for_prepare_pod ; sleep 100
 
+      # Rook v1.19 changed validate_cluster.sh's rgw probe to select pods
+      # by `rgw=$OBJECT_STORE_NAME` and hardcodes `store-a` when called
+      # with daemon=all. We deploy object-test.yaml whose CephObjectStore
+      # is named `my-store`, so the default selector misses and the rgw
+      # wait times out. Validate non-rgw daemons via the helper, then
+      # wait on the rgw deployment directly using its app= label.
       - name: wait for ceph to be ready
-        run: cd rook ; tests/scripts/github-action-helper.sh wait_for_ceph_to_be_ready all 2
+        run: |
+          cd rook
+          tests/scripts/github-action-helper.sh wait_for_ceph_to_be_ready 'osd,mds,rbd_mirror,fs_mirror,nfs' 2
+          kubectl -n rook-ceph rollout status deployment/rook-ceph-rgw-my-store-a --timeout=360s
 
       - name: wait for ceph mgr to be ready
         run: |
@@ -199,7 +216,11 @@ jobs:
           cd rook
           toolbox=$(kubectl get pod -l app=rook-ceph-tools -n rook-ceph -o jsonpath='{.items[*].metadata.name}')
           kubectl -n rook-ceph exec $toolbox -- mkdir -p /etc/ceph/test-data
-          kubectl -n rook-ceph cp tests/ceph-status-out $toolbox:/etc/ceph/test-data/
+          # Rook v1.19 moved test fixtures: tests/ceph-status-out ->
+          # tests/external-cluster/ceph-status-out and added a required
+          # external-config.ini sibling.
+          kubectl -n rook-ceph cp tests/external-cluster/ceph-status-out $toolbox:/etc/ceph/test-data/
+          kubectl -n rook-ceph cp tests/external-cluster/external-config.ini $toolbox:/etc/ceph/
           kubectl -n rook-ceph cp deploy/examples/create-external-cluster-resources.py $toolbox:/etc/ceph
           kubectl -n rook-ceph cp deploy/examples/create-external-cluster-resources-tests.py $toolbox:/etc/ceph
           timeout 10 sh -c "until kubectl -n rook-ceph exec $toolbox -- python3 /etc/ceph/create-external-cluster-resources.py --rbd-data-pool-name replicapool; do echo 'waiting for script to succeed' && sleep 1; done"
@@ -232,15 +253,15 @@ jobs:
         run: |
           cd rook
           toolbox=$(kubectl get pod -l app=rook-ceph-tools -n rook-ceph -o jsonpath='{.items[*].metadata.name}')
-          # update client.csi-rbd-provisioner csi user caps
-          # print client.csi-rbd-provisioner user before update
-          kubectl -n rook-ceph exec $toolbox -- ceph auth get client.csi-rbd-provisioner
-          kubectl -n rook-ceph exec $toolbox -- ceph auth caps client.csi-rbd-provisioner mon 'profile rbd, allow command "osd ls"' osd 'profile rbd' mgr 'allow rw'
-          # print client.csi-rbd-provisioner user after update
-          kubectl -n rook-ceph exec $toolbox -- ceph auth get client.csi-rbd-provisioner
+          # update client.csi-rbd-provisioner.1 csi user caps
+          # print client.csi-rbd-provisioner.1 user before update
+          kubectl -n rook-ceph exec $toolbox -- ceph auth get client.csi-rbd-provisioner.1
+          kubectl -n rook-ceph exec $toolbox -- ceph auth caps client.csi-rbd-provisioner.1 mon 'profile rbd, allow command "osd ls"' osd 'profile rbd' mgr 'allow rw'
+          # print client.csi-rbd-provisioner.1 user after update
+          kubectl -n rook-ceph exec $toolbox -- ceph auth get client.csi-rbd-provisioner.1
           kubectl -n rook-ceph exec $toolbox -- python3 /etc/ceph/create-external-cluster-resources.py --rbd-data-pool-name replicapool
-          # print client.csi-rbd-provisioner user after running script
-          kubectl -n rook-ceph exec $toolbox -- ceph auth get client.csi-rbd-provisioner
+          # print client.csi-rbd-provisioner.1 user after running script
+          kubectl -n rook-ceph exec $toolbox -- ceph auth get client.csi-rbd-provisioner.1
 
       - name: run external script create-external-cluster-resources.py unit tests
         run: |
@@ -280,9 +301,9 @@ jobs:
         run: |
           cd rook
           toolbox=$(kubectl get pod -l app=rook-ceph-tools -n rook-ceph -o jsonpath='{.items[*].metadata.name}')
-          # create `radosNamespace1` rados-namespace for `replicapool` rbd data-pool
-          kubectl -n rook-ceph exec $toolbox -- rbd namespace create replicapool/radosNamespace1
-          kubectl -n rook-ceph exec $toolbox -- python3 /etc/ceph/create-external-cluster-resources.py --rbd-data-pool-name replicapool --rados-namespace radosNamespace1
+          # create `radosnamespace1` rados-namespace for `replicapool` rbd data-pool
+          kubectl -n rook-ceph exec $toolbox -- rbd namespace create replicapool/radosnamespace1
+          kubectl -n rook-ceph exec $toolbox -- python3 /etc/ceph/create-external-cluster-resources.py --rbd-data-pool-name replicapool --rados-namespace radosnamespace1
            # test the rados namespace which not exit for replicapool(false testing)
           if output=$(kubectl -n rook-ceph exec $toolbox -- python3 /etc/ceph/create-external-cluster-resources.py --rbd-data-pool-name replicapool --rados-namespace false-test-namespace); then
             echo "unexpectedly succeeded after passing the wrong rados namespace: $output"
@@ -326,17 +347,25 @@ jobs:
           # print upgraded client auth
           kubectl -n rook-ceph exec $toolbox -- ceph auth get client.csi-rbd-node-rookstorage-replicapool
 
+      # The CephObjectStore is named `my-store`, so its RGW realm,
+      # zonegroup and zone are all `my-store`. Without explicit
+      # --rgw-realm-name/-zonegroup-name/-zone-name, create-external-
+      # cluster-resources.py creates `rgw-admin-ops-user` in the empty
+      # default zone, and the admin-ops API call against the `my-store`
+      # endpoint returns 403 (unknown user). Pass the store name to all
+      # validations against the in-cluster RGW.
       - name: validate-rgw-endpoint
         run: |
           cd rook
-          rgw_endpoint=$(kubectl get service -n rook-ceph |  awk '/rgw/ {print $3":80"}')
+          rgw_endpoint=$(kubectl get service -n rook-ceph -l rgw=my-store | awk '/rgw/ {print $3":80"}')
           toolbox=$(kubectl get pod -l app=rook-ceph-tools -n rook-ceph -o jsonpath='{.items[*].metadata.name}')
+          rgw_args="--rgw-realm-name my-store --rgw-zonegroup-name my-store --rgw-zone-name my-store"
           # pass the valid rgw-endpoint of same ceph cluster
-          timeout 15 sh -c "until kubectl -n rook-ceph exec $toolbox -- python3 /etc/ceph/create-external-cluster-resources.py --rbd-data-pool-name replicapool --rgw-endpoint $rgw_endpoint 2> output.txt; do sleep 1 && echo 'waiting for the rgw endpoint to be validated'; done"
+          timeout 15 sh -c "until kubectl -n rook-ceph exec $toolbox -- python3 /etc/ceph/create-external-cluster-resources.py --rbd-data-pool-name replicapool --rgw-endpoint $rgw_endpoint $rgw_args 2> output.txt; do sleep 1 && echo 'waiting for the rgw endpoint to be validated'; done"
           tests/scripts/github-action-helper.sh check_empty_file output.txt
           rm -f output.txt
           # pass the invalid rgw-endpoint of different ceph cluster
-          timeout 15 sh -c "until kubectl -n rook-ceph exec $toolbox -- python3 /etc/ceph/create-external-cluster-resources.py --rbd-data-pool-name replicapool --rgw-endpoint 10.108.96.128:80  2> output.txt; do sleep 1 && echo 'waiting for the rgw endpoint to be validated'; done"
+          timeout 15 sh -c "until kubectl -n rook-ceph exec $toolbox -- python3 /etc/ceph/create-external-cluster-resources.py --rbd-data-pool-name replicapool --rgw-endpoint 10.108.96.128:80 $rgw_args 2> output.txt; do sleep 1 && echo 'waiting for the rgw endpoint to be validated'; done"
           if [ -s output.txt ]; then
             echo "script run completed with stderr error after passing the wrong rgw-endpoint: $output"
             rm -f output.txt
@@ -346,11 +375,11 @@ jobs:
             exit 1
           fi
           # pass the valid rgw-endpoint of same ceph cluster with --rgw-tls-cert-path
-          timeout 15 sh -c "until kubectl -n rook-ceph exec $toolbox -- python3 /etc/ceph/create-external-cluster-resources.py --rbd-data-pool-name replicapool --rgw-endpoint $rgw_endpoint --rgw-tls-cert-path my-cert 2> output.txt; do sleep 1 && echo 'waiting for the rgw endpoint to be validated'; done"
+          timeout 15 sh -c "until kubectl -n rook-ceph exec $toolbox -- python3 /etc/ceph/create-external-cluster-resources.py --rbd-data-pool-name replicapool --rgw-endpoint $rgw_endpoint $rgw_args --rgw-tls-cert-path my-cert 2> output.txt; do sleep 1 && echo 'waiting for the rgw endpoint to be validated'; done"
           tests/scripts/github-action-helper.sh check_empty_file output.txt
           rm -f output.txt
           # pass the valid rgw-endpoint of same ceph cluster with --rgw-skip-tls
-          timeout 15 sh -c "until kubectl -n rook-ceph exec $toolbox -- python3 /etc/ceph/create-external-cluster-resources.py --rbd-data-pool-name replicapool --rgw-endpoint $rgw_endpoint --rgw-skip-tls true 2> output.txt; do sleep 1 && echo 'waiting for the rgw endpoint to be validated'; done"
+          timeout 15 sh -c "until kubectl -n rook-ceph exec $toolbox -- python3 /etc/ceph/create-external-cluster-resources.py --rbd-data-pool-name replicapool --rgw-endpoint $rgw_endpoint $rgw_args --rgw-skip-tls true 2> output.txt; do sleep 1 && echo 'waiting for the rgw endpoint to be validated'; done"
           tests/scripts/github-action-helper.sh check_empty_file output.txt
           rm -f output.txt
 
