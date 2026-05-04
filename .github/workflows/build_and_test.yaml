@@ -216,7 +216,11 @@ jobs:
           cd rook
           toolbox=$(kubectl get pod -l app=rook-ceph-tools -n rook-ceph -o jsonpath='{.items[*].metadata.name}')
           kubectl -n rook-ceph exec $toolbox -- mkdir -p /etc/ceph/test-data
-          kubectl -n rook-ceph cp tests/ceph-status-out $toolbox:/etc/ceph/test-data/
+          # Rook v1.19 moved test fixtures: tests/ceph-status-out ->
+          # tests/external-cluster/ceph-status-out and added a required
+          # external-config.ini sibling.
+          kubectl -n rook-ceph cp tests/external-cluster/ceph-status-out $toolbox:/etc/ceph/test-data/
+          kubectl -n rook-ceph cp tests/external-cluster/external-config.ini $toolbox:/etc/ceph/
           kubectl -n rook-ceph cp deploy/examples/create-external-cluster-resources.py $toolbox:/etc/ceph
           kubectl -n rook-ceph cp deploy/examples/create-external-cluster-resources-tests.py $toolbox:/etc/ceph
           timeout 10 sh -c "until kubectl -n rook-ceph exec $toolbox -- python3 /etc/ceph/create-external-cluster-resources.py --rbd-data-pool-name replicapool; do echo 'waiting for script to succeed' && sleep 1; done"
