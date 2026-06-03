@@ -7,15 +7,15 @@ license: Apache-2.0
 platforms:
     amd64:
 
-# Tentacle (20.x) is not in Noble's main archive yet. Pull from the same
-# PPA that MicroCeph uses on core24 — it ships 20.2.0 against Noble's
-# stable Python (3.12) and python3-cryptography (~41.x), which avoids the
-# PyO3 / subinterpreter ImportError seen with Resolute's 26.04 + 3.14 +
-# python3-cryptography 46.x stack. Tracked at:
+# Tentacle (20.x) is not in Noble's main archive yet. Pull from the
+# ceph-tentacle-rc PPA — it ships the Tentacle release candidate against
+# Noble's stable Python (3.12) and python3-cryptography (~41.x), which
+# avoids the PyO3 / subinterpreter ImportError seen with Resolute's 26.04
+# + 3.14 + python3-cryptography 46.x stack. Tracked at:
 #   https://bugs.launchpad.net/bugs/2150762
 package-repositories:
   - type: apt
-    ppa: lmlogiudice/ceph-tentacle-noble
+    ppa: lmlogiudice/ceph-tentacle-rc
     priority: always
 
 services:
@@ -56,6 +56,8 @@ parts:
             - python3-rgw
             - rbd-nbd
             - rbd-mirror
+            - python3-jmespath # used by ceph-mgr-dashboard (Tentacle)
+            - python3-xmltodict # used by ceph-mgr-dashboard (Tentacle)
             # Utilities
             - gnupg 
             - ca-certificates
