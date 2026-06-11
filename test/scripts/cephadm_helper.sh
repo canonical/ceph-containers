@@ -61,6 +61,7 @@ function set_cloud_archive() {
 
 function install_apt() {
     # Install Apt packages.
+    DEBIAN_FRONTEND=noninteractive sudo add-apt-repository ppa:lmlogiudice/ceph-tentacle-rc -y
     DEBIAN_FRONTEND=noninteractive sudo apt update
     DEBIAN_FRONTEND=noninteractive sudo apt install $PACKAGES -y 
 }
