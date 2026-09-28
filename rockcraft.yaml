@@ -75,21 +75,6 @@ parts:
             - sharutils
             - lsof
             - python3-onelogin-saml2
-        overlay-script: |
-            set -eu
-            cd "${CRAFT_OVERLAY}"
-            for p in "${CRAFT_PROJECT_DIR}"/patches/*.patch; do
-              echo "Applying ${p}"
-              # --forward + dry-run check makes incremental rebuilds safe:
-              # if the patch is already applied (overlay cache survived
-              # from a prior pack), skip it instead of failing.
-              if patch -p1 --forward --dry-run --silent < "${p}" >/dev/null 2>&1; then
-                patch -p1 --forward < "${p}"
-              else
-                echo "Patch ${p} appears already applied; skipping"
-              fi
-            done
-
     nfs-ganesha:
         plugin: nil
         after: [ceph]
