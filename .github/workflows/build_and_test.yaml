@@ -18,7 +18,11 @@ defaults:
 
 jobs:
   build-rock:
-    runs-on: ubuntu-latest
+    # Keep fork-controlled build scripts off the organisation runner.
+    runs-on: >-
+      ${{ github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name != github.repository &&
+          'ubuntu-latest' || 'self-hosted-linux-amd64-noble-medium' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3

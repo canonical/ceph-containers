@@ -1,3 +1,4 @@
 self-hosted-runner:
   labels:
+    - self-hosted-linux-amd64-noble-medium
     - self-hosted-linux-amd64-noble-large

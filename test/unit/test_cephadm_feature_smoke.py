@@ -200,6 +200,32 @@ class SmokeTests(unittest.TestCase):
 
 
 class WorkflowTests(unittest.TestCase):
+    def test_all_rock_builds_use_medium_and_local_rockcraft(self):
+        for name in ("build_and_test", "publish_edge", "publish_release",
+                     "publish_hotfix"):
+            with self.subTest(workflow=name):
+                text = (ROOT / f".github/workflows/{name}.yaml").read_text()
+                if name == "build_and_test":
+                    text = text.split("  build-rock:\n", 1)[1]
+                    text = text.split("  flake8-lint:\n", 1)[0]
+                self.assertIn("self-hosted-linux-amd64-noble-medium", text)
+                self.assertIn("canonical/setup-lxd@", text)
+                self.assertIn("canonical/craft-actions/rockcraft-pack@", text)
+                self.assertNotIn("remote-build", text)
+                self.assertNotIn("LAUNCHPAD_CREDENTIALS", text)
+
+    def test_fork_builds_keep_github_hosted_runners(self):
+        for name, runner in (("build_and_test", "ubuntu-latest"),
+                             ("publish_hotfix", "ubuntu-22.04")):
+            with self.subTest(workflow=name):
+                text = (ROOT / f".github/workflows/{name}.yaml").read_text()
+                if name == "build_and_test":
+                    text = text.split("  build-rock:\n", 1)[1]
+                    text = text.split("  flake8-lint:\n", 1)[0]
+                self.assertIn("github.event_name == 'pull_request'", text)
+                self.assertIn("head.repo.full_name != github.repository", text)
+                self.assertIn(f"'{runner}' ||", text)
+
     def test_gate_and_runner(self):
         text = (ROOT / ".github/workflows/build_and_test.yaml").read_text()
         self.assertIn("  CephadmFeatureSmoke:\n", text)

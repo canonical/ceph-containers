@@ -10,7 +10,7 @@ on:
 jobs:
   release_to_registry:
     name: Release Ceph rock to GHCR
-    runs-on: ubuntu-22.04
+    runs-on: self-hosted-linux-amd64-noble-medium
     permissions:
       packages: write
     steps:

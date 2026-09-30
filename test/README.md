@@ -5,6 +5,13 @@ performance, soak, or upgrade test. It runs only after **both** `CephadmTest` an
 `RookTest` succeed and downloads the same `rock` artifact. Fork PRs are excluded
 because their scripts must not execute on the organisation's self-hosted runners.
 
+## Build runner
+
+ROCKs are still built locally with Rockcraft and LXD, not Launchpad. Trusted
+Canary builds and the publish workflows use
+`self-hosted-linux-amd64-noble-medium`. Fork PR builds keep their GitHub-hosted
+runners. No Launchpad credentials are needed or copied into CI.
+
 ## Fixture and resource budget
 
 The job uses `self-hosted-linux-amd64-noble-large` only. There is no automatic XL
