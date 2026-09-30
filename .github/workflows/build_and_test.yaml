@@ -186,10 +186,10 @@ jobs:
         run: kubectl create -f rook/deploy/examples/csi-operator.yaml
 
       - name: deploy cluster
-        run: ./scripts/deploy-helper.sh deploy_cluster rook/ceph:v1.19.5 localhost:5000/canonical/ceph:latest
+        run: ./scripts/deploy-helper.sh deploy_cluster rook/ceph:v1.19.11 localhost:5000/canonical/ceph:latest
 
       - name: wait for prepare pod
-        run: cd rook ; tests/scripts/github-action-helper.sh wait_for_prepare_pod ; sleep 100
+        run: cd rook ; tests/scripts/github-action-helper.sh wait_for_prepare_pod 2 ; sleep 100
 
       # Rook v1.19 changed validate_cluster.sh's rgw probe to select pods
       # by `rgw=$OBJECT_STORE_NAME` and hardcodes `store-a` when called
