@@ -52,12 +52,18 @@ jobs:
 
       - name: Patch PR information into rock recipe
         id: versioning
+        shell: bash
         run: |
-            PKG_VER_STR=$(sudo rockcraft pull pkg_info -v &>  >(grep "Version"))
-            PKG_VER=$(cut -d' ' -f3 <<< $PKG_VER_STR)
-            CEPH_VER=$(cut -d'-' -f1 <<< $PKG_VER)
+            sudo rockcraft pull pkg_info --verbosity=debug 2>&1 | tee "$RUNNER_TEMP/rockcraft-pull.log"
+            # Debug output can include timestamps before apt's Version field.
+            PKG_VER=$(awk '/(^|[[:space:]])Version:[[:space:]]/ {sub(/.*Version:[[:space:]]*/, ""); print $1; exit}' "$RUNNER_TEMP/rockcraft-pull.log")
+            if [[ -z "$PKG_VER" ]]; then
+              echo "::error::Could not determine ceph-common version; see the Rockcraft logs"
+              exit 1
+            fi
+            CEPH_VER=$(cut -d'-' -f1 <<< "$PKG_VER")
             sed -i "/version:/c\version: $PR_NUM-$CEPH_VER" rockcraft.yaml
-            echo "::set-output name=ceph_version::$CEPH_VER"
+            echo "ceph_version=$CEPH_VER" >> "$GITHUB_OUTPUT"
         env:
           PR_NUM: ${{ github.event.pull_request.number }}
 
@@ -79,6 +85,8 @@ jobs:
       - name: Prepare Rock
         uses: canonical/craft-actions/rockcraft-pack@main
         id: rockcraft
+        with:
+          verbosity: debug
       - name: Add cephadm image label
         run: scripts/add-oci-label ${{ steps.rockcraft.outputs.rock }} ceph True
 
@@ -95,3 +103,28 @@ jobs:
             docker push ghcr.io/canonical/ceph --all-tags
         env:
           TAGS: ${{ steps.meta.outputs.tags }}
+
+      - name: Collect Rockcraft logs
+        if: always()
+        shell: bash
+        run: |
+          log_dir="$RUNNER_TEMP/rockcraft-diagnostics"
+          mkdir -p "$log_dir"
+          if [[ -f "$RUNNER_TEMP/rockcraft-pull.log" ]]; then
+            cp "$RUNNER_TEMP/rockcraft-pull.log" "$log_dir/"
+          fi
+          # Rockcraft is invoked both directly with sudo and by craft-actions.
+          for home in "$HOME" /root; do
+            if sudo test -d "$home/.local/state/rockcraft/log"; then
+              sudo cp -a "$home/.local/state/rockcraft/log" "$log_dir/$(basename "$home")"
+            fi
+          done
+          sudo chown -R "$(id -u):$(id -g)" "$log_dir"
+
+      - name: Upload Rockcraft logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hotfix-rockcraft-logs-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/rockcraft-diagnostics
+          if-no-files-found: warn
