@@ -121,56 +121,6 @@ jobs:
           ./test/scripts/cephadm_helper.sh runOnHost cephadm0 deploy_osd 
           ./test/scripts/cephadm_helper.sh runOnHost cephadm0 wait_num_objs osd 3 
 
-  CephadmFeatureSmoke:
-    needs: [CephadmTest, RookTest]
-    # Never execute fork-controlled scripts on an organisation runner.
-    if: >-
-      ${{ success() && (github.event_name != 'pull_request' ||
-          github.event.pull_request.head.repo.full_name == github.repository) }}
-    runs-on: self-hosted-linux-amd64-noble-large
-    timeout-minutes: 90
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v5
-      - name: Download tested candidate
-        uses: actions/download-artifact@v4
-        with:
-          name: rock
-          path: ${{ runner.temp }}/cephadm-feature-image
-      - name: Install test tools
-        run: |
-          sudo snap install rockcraft --classic
-          sudo snap install lxd --channel=5.21/stable
-          if ! sudo lxc storage show default; then
-            sudo lxd init --auto --storage-backend=dir
-          fi
-      - name: Run multi-node feature smoke tests
-        env:
-          IMAGE_DIR: ${{ runner.temp }}/cephadm-feature-image
-          LOG_DIR: ${{ runner.temp }}/cephadm-feature-logs
-        run: |
-          shopt -s nullglob
-          rocks=("$IMAGE_DIR"/*.rock)
-          [[ ${#rocks[@]} -eq 1 ]] || { echo "Expected one candidate ROCK"; exit 1; }
-          sudo python3 test/scripts/cephadm_feature_smoke.py \
-            --rock "${rocks[0]}" --output "$LOG_DIR"
-      - name: Feature summary
-        if: always()
-        env:
-          LOG_DIR: ${{ runner.temp }}/cephadm-feature-logs
-        run: |
-          if [[ -f "$LOG_DIR/summary.md" ]]; then
-            cat "$LOG_DIR/summary.md" >> "$GITHUB_STEP_SUMMARY"
-          fi
-      - name: Upload feature diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: cephadm-feature-smoke-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/cephadm-feature-logs
-          if-no-files-found: warn
-
   RookTest:
     needs: build-rock
     # Minikube action only works on Jammy. 

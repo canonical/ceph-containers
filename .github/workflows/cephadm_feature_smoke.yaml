@@ -1,0 +1,55 @@
+name: Cephadm image feature smoke
+run-name: Cephadm feature smoke — ${{ inputs.image }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      image:
+        description: 'Public Ceph image tag or digest (e.g. ghcr.io/canonical/ceph:tentacle-edge)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  CephadmFeatureSmoke:
+    runs-on: self-hosted-linux-amd64-noble-large
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+      - name: Test harness helpers
+        run: python3 -m unittest discover -s test/unit -v
+      - name: Install test tools
+        run: |
+          sudo snap install rockcraft --classic
+          sudo snap install lxd --channel=5.21/stable
+          if ! sudo lxc storage show default; then
+            sudo lxd init --auto --storage-backend=dir
+          fi
+      - name: Run multi-node feature smoke tests
+        env:
+          CEPH_IMAGE: ${{ inputs.image }}
+          LOG_DIR: ${{ runner.temp }}/cephadm-feature-logs
+        run: |
+          sudo python3 test/scripts/cephadm_feature_smoke.py \
+            --image "$CEPH_IMAGE" --output "$LOG_DIR"
+      - name: Feature summary
+        if: always()
+        env:
+          LOG_DIR: ${{ runner.temp }}/cephadm-feature-logs
+        run: |
+          if [[ -f "$LOG_DIR/summary.md" ]]; then
+            cat "$LOG_DIR/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload feature diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cephadm-feature-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/cephadm-feature-logs
+          if-no-files-found: warn

@@ -1,9 +1,30 @@
 # Cephadm feature smoke tests
 
-`CephadmFeatureSmoke` is a breadth check of the candidate image, not a resilience,
-performance, soak, or upgrade test. It runs only after **both** `CephadmTest` and
-`RookTest` succeed and downloads the same `rock` artifact. Fork PRs are excluded
-because their scripts must not execute on the organisation's self-hosted runners.
+`CephadmFeatureSmoke` is a manual breadth check of a selected image, not a
+resilience, performance, soak, or upgrade test. It does not build a ROCK and is
+not part of automatic PR CI. Single-node `CephadmTest` and `RookTest` remain
+automatic and unchanged. The manual suite does not enforce their success or
+claim to test each unpublished PR candidate.
+
+## Run against a registry image
+
+In Actions, select **Cephadm image feature smoke**, choose **Run workflow**, and
+supply the required `image` input. Alternatively:
+
+```sh
+gh workflow run cephadm_feature_smoke.yaml --repo canonical/ceph-containers \
+  -f image=ghcr.io/canonical/ceph:tentacle-edge
+```
+
+The workflow must be present on the default branch before it can be dispatched.
+Only collaborators permitted to dispatch workflows can start this self-hosted
+job; it has no push or pull-request trigger.
+
+Supply a fully qualified **public** image with an explicit tag or SHA-256 digest.
+Do not put registry credentials in this input. A tag is resolved once before VM
+provisioning, and the immutable source reference is recorded in `candidate.json`.
+The suite selects Linux/AMD64 and requires Cephadm's `ceph=True` image label.
+The chosen image is expected to contain the components in the coverage table.
 
 ## Build runner
 
@@ -24,10 +45,13 @@ snapshots are retained so changes can be based on observed limits.
 Bootstrap uses normal multi-host defaults. The cluster has three monitors,
 two managers and three OSDs, with a fixed 2 GiB OSD memory target and autotuning
 disabled for a predictable smoke-test budget. A registry in the first VM serves
-the candidate to all nodes. The candidate is referenced by digest, and running daemons' image IDs
-are checked against its config digest. The global `container_image` setting is
-pinned explicitly; Ceph 20.2 uses this setting for NFS and iSCSI as well as core
-and mirror daemons.
+the candidate to all nodes. Its local repository reference is pinned by manifest
+digest and must appear in each running daemon's `container_image_digests`.
+`container_image_id` is deliberately not used: depending on the engine, it can
+be a config ID or a manifest digest. `candidate.json` records both the requested
+source and pinned source/local references. The global `container_image` setting
+is pinned explicitly; Ceph 20.2 uses it for NFS and iSCSI as well as core and
+mirror daemons.
 
 ## Coverage
 
@@ -73,13 +97,16 @@ still be disposable: forced cancellation or runner loss can interrupt cleanup.
 ## Local use
 
 Use a disposable host with LXD initialized and a `default` storage pool. Install
-Rockcraft for `rockcraft.skopeo`, and provide a candidate ROCK already carrying
-the `ceph=True` label (as the CI build does):
+Rockcraft for `rockcraft.skopeo`, then select a registry image:
 
 ```sh
 sudo python3 test/scripts/cephadm_feature_smoke.py \
-  --rock /path/to/candidate.rock --output /path/to/feature-logs
+  --image ghcr.io/canonical/ceph:tentacle-edge --output /path/to/feature-logs
 ```
+
+Local OCI archives are still supported with `--rock /path/to/candidate.rock`
+instead of `--image`. They must already carry the `ceph=True` label, as the
+Canary build artifact does.
 
 This provisions a new cluster; it cannot target an existing one. No Launchpad
 or AWS credentials are used.

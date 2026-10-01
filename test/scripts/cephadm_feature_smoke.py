@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import secrets
 import shlex
 import shutil
@@ -31,17 +32,56 @@ def check_capacity(cpus, memory, disk, kvm):
             f"disk={disk // GIB} GiB, kvm={kvm}. No runner-size fallback.")
 
 
-def daemons_ready(daemons, count, image_id):
+def image_reference(value):
+    """Require registry references without URLs or embedded credentials."""
+    error = ("Use a fully qualified image with a tag or sha256 digest, "
+             "without credentials or a transport prefix")
+    if (not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:/@-]*", value)
+            or "://" in value):
+        raise argparse.ArgumentTypeError(error)
+    name, separator, digest = value.partition("@")
+    registry, slash, path = name.partition("/")
+    if (not slash or not path
+            or not ("." in registry or ":" in registry
+                    or registry == "localhost")):
+        raise argparse.ArgumentTypeError(error)
+    if separator and not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
+        raise argparse.ArgumentTypeError(error)
+    leaf = path.rsplit("/", 1)[-1]
+    if ":" in leaf:
+        repository, tag = leaf.rsplit(":", 1)
+        if not repository or not re.fullmatch(r"[\w][\w.-]{0,127}", tag):
+            raise argparse.ArgumentTypeError(error)
+    elif not separator:
+        raise argparse.ArgumentTypeError(error)
+    return value
+
+
+def pinned_reference(value, digest):
+    image_reference(value)
+    name, separator, explicit = value.partition("@")
+    if separator:
+        digest = explicit
+    if not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
+        raise RuntimeError("Registry did not return a sha256 manifest digest")
+    # A colon in the registry port is not an image tag separator.
+    if ":" in name.rsplit("/", 1)[-1]:
+        name = name.rsplit(":", 1)[0]
+    return f"{name}@{digest}"
+
+
+def daemons_ready(daemons, count, image):
     if len(daemons) != count:
         return False
     for daemon in daemons:
         if daemon.get("status_desc") != "running":
             return False
-        actual = daemon.get("container_image_id") or ""
-        actual = actual.removeprefix("sha256:")
-        if not actual:
+        # container_image_id can represent a config ID or a manifest digest,
+        # depending on the engine. RepoDigests identify the actual image.
+        digests = daemon.get("container_image_digests")
+        if not isinstance(digests, list) or not digests:
             return False
-        if actual != image_id:
+        if image not in digests:
             name = daemon.get("daemon_name", daemon.get("daemon_id"))
             raise RuntimeError(
                 f"Daemon is not using the candidate image: {name}")
@@ -131,8 +171,10 @@ class Commands:
 
 
 class Cluster:
-    def __init__(self, rock, output):
+    def __init__(self, rock, output, image=None):
         self.rock = rock
+        self.requested_image = image
+        self.source_metadata = {}
         self.output = output
         self.cmd = Commands(output)
         suffix = uuid.uuid4().hex[:8]
@@ -145,7 +187,6 @@ class Cluster:
         self.network_created = False
         self.ips = {}
         self.image = ""
-        self.image_id = ""
 
     def lxc(self, *args, **kwargs):
         return self.cmd.run(["lxc", *args], **kwargs)
@@ -180,7 +221,7 @@ class Cluster:
     def service_ready(self, name, count=1):
         wait_for(name, lambda: daemons_ready(self.ceph_json(
             "orch", "ps", "--service_name", name, "--refresh"),
-            count, self.image_id))
+            count, self.image))
 
     @contextmanager
     def service(self, name, remove=None):
@@ -202,6 +243,30 @@ class Cluster:
                 if not failed:
                     raise
 
+    def resolve_source(self):
+        if self.requested_image:
+            image_reference(self.requested_image)
+            info = json.loads(self.cmd.run([
+                "rockcraft.skopeo", "--override-arch", "amd64", "inspect",
+                "--no-tags", f"docker://{self.requested_image}"]))
+            if (info.get("Architecture") != "amd64"
+                    or info.get("Os") != "linux"):
+                raise RuntimeError("Expected a linux/amd64 candidate image")
+            if (info.get("Labels") or {}).get("ceph") != "True":
+                raise RuntimeError("Candidate lacks cephadm's ceph=True label")
+            pinned = pinned_reference(self.requested_image, info["Digest"])
+            self.source_metadata = {"requested_image": self.requested_image,
+                                    "source_image": pinned,
+                                    "platform": "linux/amd64"}
+            return f"docker://{pinned}"
+        digest = hashlib.sha256()
+        with self.rock.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+        self.source_metadata = {"rock": self.rock.name,
+                                "sha256": digest.hexdigest()}
+        return f"oci-archive:{self.rock}"
+
     def provision(self):
         memory = int(next(
             line.split()[1]
@@ -210,6 +275,10 @@ class Cluster:
         check_capacity(len(os.sched_getaffinity(0)), memory,
                        shutil.disk_usage("/var/snap/lxd/common").free,
                        os.access("/dev/kvm", os.R_OK | os.W_OK))
+        # Resolve before creating VMs, and never re-read a mutable source tag.
+        source = self.resolve_source()
+        (self.output / "candidate.json").write_text(
+            json.dumps(self.source_metadata, indent=2))
         self.lxc("network", "create", self.network, "ipv4.address=auto",
                  "ipv4.nat=true", "ipv6.address=none")
         self.network_created = True
@@ -258,25 +327,19 @@ install -d -m 700 /root/.ssh /root/ceph-feature-smoke
         wait_for("registry", lambda: self.node(
             seed, "curl", "-fsS", f"http://{registry}/v2/") == "{}")
         tagged = f"{registry}/canonical/ceph:candidate"
-        self.cmd.run(["rockcraft.skopeo", "--insecure-policy", "copy",
-                      "--dest-tls-verify=false", f"oci-archive:{self.rock}",
+        self.cmd.run(["rockcraft.skopeo", "--insecure-policy",
+                      "--override-arch", "amd64", "copy",
+                      "--dest-tls-verify=false", source,
                       f"docker://{tagged}"], timeout=600)
-        manifest = self.cmd.run(["rockcraft.skopeo", "inspect", "--raw",
-                                 "--tls-verify=false", f"docker://{tagged}"])
         image_info = json.loads(self.cmd.run([
-            "rockcraft.skopeo", "inspect", "--tls-verify=false",
+            "rockcraft.skopeo", "inspect", "--no-tags", "--tls-verify=false",
             f"docker://{tagged}"]))
-        if image_info.get("Labels", {}).get("ceph") != "True":
+        if (image_info.get("Labels") or {}).get("ceph") != "True":
             raise RuntimeError("Candidate lacks cephadm's ceph=True label")
-        self.image = f"{registry}/canonical/ceph@{image_info['Digest']}"
-        self.image_id = json.loads(manifest)["config"]["digest"].split(":")[1]
-        digest = hashlib.sha256()
-        with self.rock.open("rb") as stream:
-            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-                digest.update(chunk)
+        self.image = pinned_reference(tagged, image_info["Digest"])
         (self.output / "candidate.json").write_text(json.dumps({
-            "rock": self.rock.name, "sha256": digest.hexdigest(),
-            "image": self.image, "image_id": self.image_id,
+            **self.source_metadata, "image": self.image,
+            "manifest_digest": image_info["Digest"],
             "nodes": self.ips}, indent=2))
         self.node(seed, "cephadm", "--image", self.image, "bootstrap",
                   "--mon-ip", self.ips[seed], "--skip-dashboard",
@@ -303,7 +366,7 @@ install -d -m 700 /root/.ssh /root/ceph-feature-smoke
             self.ceph_json("status"), 3), timeout=600)
         wait_for("candidate OSDs", lambda: daemons_ready(self.ceph_json(
             "orch", "ps", "--daemon_type", "osd", "--refresh"),
-            3, self.image_id))
+            3, self.image))
         self.put(seed, f"{WORK}/payload", "ceph-container-feature-smoke\n")
 
     def core(self):
@@ -563,13 +626,17 @@ rm /mnt/nfs-smoke/nfs-probe
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--rock", required=True, type=Path)
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--rock", type=Path, help="Local OCI archive")
+    source.add_argument("--image", type=image_reference,
+                        help="Public registry image tag or sha256 digest")
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
-    if not args.rock.is_file():
+    if args.rock is not None and not args.rock.is_file():
         parser.error("--rock must name the downloaded candidate artifact")
     args.output.mkdir(parents=True, exist_ok=True)
-    cluster = Cluster(args.rock.resolve(), args.output.resolve())
+    rock = args.rock.resolve() if args.rock is not None else None
+    cluster = Cluster(rock, args.output.resolve(), image=args.image)
     results = []
 
     def interrupted(signum, frame):
