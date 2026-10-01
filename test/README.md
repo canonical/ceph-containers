@@ -7,10 +7,10 @@ because their scripts must not execute on the organisation's self-hosted runners
 
 ## Build runner
 
-ROCKs are still built locally with Rockcraft and LXD, not Launchpad. Trusted
-Canary builds and the publish workflows use
-`self-hosted-linux-amd64-noble-medium`. Fork PR builds keep their GitHub-hosted
-runners. No Launchpad credentials are needed or copied into CI.
+ROCKs are built locally with Rockcraft and LXD on standard GitHub-hosted
+runners: `ubuntu-latest` for Canary builds and `ubuntu-22.04` for publishing.
+Only the feature-smoke job uses a custom runner. No Launchpad credentials are
+needed or copied into CI.
 
 ## Fixture and resource budget
 

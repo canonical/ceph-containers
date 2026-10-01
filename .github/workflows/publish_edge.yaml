@@ -11,7 +11,7 @@ on:
 jobs:
   release_to_registry:
     name: Release Ceph Rocks Edge to GHCR
-    runs-on: self-hosted-linux-amd64-noble-medium
+    runs-on: ubuntu-22.04
     permissions:
       packages: write
     steps:

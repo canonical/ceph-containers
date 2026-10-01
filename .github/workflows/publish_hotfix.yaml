@@ -9,11 +9,7 @@ jobs:
     name: Publish hotfix release
     # Run only if 'hotfix' label is attached.
     if: ${{ github.event.label.name == 'hotfix' }}
-    # Preserve the hosted-runner boundary for fork PRs.
-    runs-on: >-
-      ${{ github.event_name == 'pull_request' &&
-          github.event.pull_request.head.repo.full_name != github.repository &&
-          'ubuntu-22.04' || 'self-hosted-linux-amd64-noble-medium' }}
+    runs-on: ubuntu-22.04
     permissions:
       packages: write
     steps:
