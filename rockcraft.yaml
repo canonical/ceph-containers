@@ -7,12 +7,7 @@ license: Apache-2.0
 platforms:
     amd64:
 
-# Use the Ceph 20.2.4 Tentacle packages from the PPA used by MicroCeph's
-# main branch. They are built for Resolute (26.04).
-package-repositories:
-  - type: apt
-    ppa: lmlogiudice/ceph-lp2166817-updates
-    priority: always
+# Use the Ceph Tentacle packages from the Ubuntu Resolute archive.
 
 services:
     ceph-container:
