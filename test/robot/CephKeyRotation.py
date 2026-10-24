@@ -337,6 +337,7 @@ class CephKeyRotation:
     def _install_keyring(self, entity, filename):
         kind, daemon_id = entity.split(".", 1)
         path = f"/var/lib/ceph/{kind}/ceph-{daemon_id}"
+        logger.info(f"Importing rotated keyring for {entity}")
         self._shell(
             "ceph-authtool",
             "--import-keyring",
@@ -346,6 +347,7 @@ class CephKeyRotation:
         )
         if kind == "osd":
             # BlueStore needs the actual key value, not the keyring filename.
+            logger.info(f"Updating BlueStore osd_key label for {entity}")
             self._shell(
                 "bash",
                 "-euo",
@@ -353,13 +355,15 @@ class CephKeyRotation:
                 "-c",
                 """
 path=$1
-key=$(ceph-authtool "$path/keyring" --print-key)
+entity=$2
+key=$(ceph-authtool "$path/keyring" --name "$entity" --print-key)
 test -n "$key"
 ceph-bluestore-tool --dev "$path/block" set-label-key \\
     --key osd_key --value "$key"
 """,
                 "--",
                 path,
+                entity,
                 name=entity,
             )
 
