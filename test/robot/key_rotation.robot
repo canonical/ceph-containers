@@ -3,8 +3,11 @@ Documentation       CephX credential rotation on a disposable single-host cephad
 ...                 Uses ceph auth rotate, not orch daemon rotate-keys.
 ...                 Tests rotation with the preferred cipher, not cipher migration.
 Library             CephKeyRotation.py
-Suite Setup         Prepare Rotation Suite
+Suite Setup         Deploy And Prepare Rotation Suite
 Suite Teardown      Finish Rotation Suite    ${SUITE STATUS}
+
+*** Variables ***
+${CEPH_IMAGE}        localhost:5000/canonical/ceph:latest
 
 *** Test Cases ***
 Rotate The Shared Monitor Key
@@ -44,5 +47,9 @@ Rotate A Client Key
     And Cluster Should Be Healthy
 
 *** Keywords ***
+Deploy And Prepare Rotation Suite
+    Deploy Single Node Cluster    ${CEPH_IMAGE}
+    Prepare Rotation Suite
+
 A Healthy Cephadm Cluster
     Cluster Should Be Healthy

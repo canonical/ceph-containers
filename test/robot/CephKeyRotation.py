@@ -23,15 +23,25 @@ class CephKeyRotation:
         self.workdir = None
         self.client_created = False
 
-    def _run(self, args, check=True):
+    def _run(self, args, check=True, timeout=60, output_prefix=None):
         try:
             result = subprocess.run(
-                args, capture_output=True, text=True, timeout=60
+                args, capture_output=True, text=True, timeout=timeout
             )
-        except subprocess.TimeoutExpired:
+        except subprocess.TimeoutExpired as error:
+            if output_prefix:
+                self._private_file(
+                    f"{output_prefix}.stdout", error.stdout or ""
+                )
+                self._private_file(
+                    f"{output_prefix}.stderr", error.stderr or ""
+                )
             raise AssertionError(
                 "Command timed out; output suppressed"
             ) from None
+        if output_prefix:
+            self._private_file(f"{output_prefix}.stdout", result.stdout)
+            self._private_file(f"{output_prefix}.stderr", result.stderr)
         if check:
             if result.returncode:
                 raise AssertionError(
@@ -159,14 +169,67 @@ class CephKeyRotation:
         self._wait(ready, f"{entity} to rejoin with a fresh registration")
 
     @keyword
-    def prepare_rotation_suite(self):
-        assert (
-            os.geteuid() == 0
-        ), "Run this suite as root in the disposable CI VM"
+    def deploy_single_node_cluster(self, image):
+        assert os.geteuid() == 0, "Run as root in a disposable CI VM"
         self.workdir = Path(
             tempfile.mkdtemp(prefix="ceph-key-rotation-", dir="/root")
         )
         self.workdir.chmod(0o700)
+        assert not json.loads(
+            self._run(["cephadm", "ls"])
+        ), "Refusing to bootstrap over existing Ceph daemons"
+        assert not Path(
+            "/etc/ceph/ceph.conf"
+        ).exists(), "Refusing to overwrite an existing Ceph configuration"
+        route = json.loads(
+            self._run(["ip", "-4", "-j", "route", "get", "1.1.1.1"])
+        )
+        mon_ip = route[0].get("prefsrc")
+        assert mon_ip, "Could not determine the monitor IPv4 address"
+        logger.info("Bootstrapping a single-node cluster from the test image")
+        self._run(
+            [
+                "cephadm",
+                "--image",
+                image,
+                "bootstrap",
+                "--mon-ip",
+                mon_ip,
+                "--single-host-defaults",
+                "--skip-dashboard",
+                "--skip-monitoring-stack",
+            ],
+            timeout=900,
+            output_prefix="bootstrap",
+        )
+        local = json.loads(self._run(["cephadm", "ls"]))
+        fsids = {d["fsid"] for d in local if d.get("style") == "cephadm:v1"}
+        assert len(fsids) == 1, "Expected one bootstrapped cephadm cluster"
+        self.fsid = fsids.pop()
+
+        def three_available_devices():
+            hosts = self._json("orch", "device", "ls", "--refresh")
+            return (
+                sum(
+                    d.get("available", False)
+                    for h in hosts
+                    for d in h.get("devices", [])
+                )
+                == 3
+            )
+
+        self._wait(three_available_devices, "three available OSD devices")
+        self._ceph("orch", "apply", "osd", "--all-available-devices")
+        self._wait(
+            lambda: len(self._json("osd", "ls")) == 3,
+            "three OSDs to be deployed",
+        )
+
+    @keyword
+    def prepare_rotation_suite(self):
+        assert (
+            self.workdir is not None
+        ), "Deploy the cluster before preparing rotation"
         local = json.loads(self._run(["cephadm", "ls"]))
         fsids = {d["fsid"] for d in local if d.get("style") == "cephadm:v1"}
         assert len(fsids) == 1, "Expected one local cephadm cluster"

@@ -1,7 +1,10 @@
 # Cephadm CephX key rotation
 
 Run this test suite through **tox**, which creates the environments and installs
-Robot Framework. No workflow or deployment helper automatically runs the suite.
+Robot Framework. The `CephadmRobotTest` CI job provisions an empty Ubuntu VM,
+loads the built image into its local registry, attaches three data disks, then
+runs `tox -e key-rotation` inside the VM. Robot bootstraps and orchestrates the
+cluster itself. The old `CephadmTest` job is retained but disabled.
 
 ## Local checks (no cluster)
 
@@ -19,18 +22,30 @@ tox -e key-rotation-dryrun
 
 ## Live rotation test
 
-On a **disposable, single-host cephadm machine** with three healthy OSDs:
+On an **empty, disposable machine with three unused data disks** (all available
+OSD devices will be consumed):
 
 ```sh
 sudo tox -e key-rotation
 ```
 
-The host must already have cephadm, systemd, Python, and tox installed. Its Ceph
-image must support `ceph auth rotate`, `ceph-authtool`, `ceph-bluestore-tool`,
-`rados`, and the manager's volumes module. Tox installs the Python dependencies;
-it does not provision a cluster or install host packages.
+The host must already have cephadm, a supported container runtime, systemd,
+OpenSSH, iproute2, Python, and tox installed. There must be no existing Ceph
+daemons or `/etc/ceph/ceph.conf`; the suite refuses to overwrite a cluster.
+Tox installs Python dependencies, not host packages or virtual machines.
 
-The suite deploys CephFS to include a real MDS, then follows
+By default the suite uses `localhost:5000/canonical/ceph:latest`, as loaded by CI.
+To use another accessible Ceph image:
+
+```sh
+sudo env CEPH_IMAGE=ghcr.io/canonical/ceph:main tox -e key-rotation
+```
+
+The image must support `ceph auth rotate`, `ceph-authtool`,
+`ceph-bluestore-tool`, `rados`, and the manager's volumes module.
+
+The suite bootstraps a single-node cluster, deploys three OSDs, and deploys
+CephFS to include a real MDS. It then follows
 [Ceph's documented credential rotation procedure](https://docs.ceph.com/en/latest/rados/configuration/auth-config-ref/#upgrading-and-rotating-cephx-keys):
 
 - Rotate the shared `mon.` key and restart the in-quorum monitors, preserving
@@ -50,7 +65,8 @@ authoritative auth-database entry rather than preserving nonexistent DB caps.
 
 The live environment stops on the first failure. Robot reports are written to
 `.tox/key-rotation/tmp/results/` by default. Credential material and command output
-are excluded from these reports. Protected recovery files remain under
+are excluded from these reports. Bootstrap output is retained privately with
+recovery material, not uploaded. Protected recovery files remain under
 `/root/ceph-key-rotation-*` on failure; **never upload these files**. No automatic
 rollback is attempted. On success the dedicated client and temporary credentials
 are removed. Test pools and the filesystem remain for disposal with the VM.
