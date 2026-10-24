@@ -9,11 +9,11 @@ Robot Framework. No workflow or deployment helper automatically runs the suite.
 tox
 ```
 
-The default environments run the keyword unit tests and a Robot dry run. They
-can also be selected separately:
+The default environment performs a Robot dry run, validating scenario syntax
+and keyword resolution without executing cluster commands. It can also be
+selected explicitly:
 
 ```sh
-tox -e key-rotation-unit
 tox -e key-rotation-dryrun
 ```
 
